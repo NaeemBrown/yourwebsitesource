@@ -305,7 +305,7 @@ async function seed() {
     customers: 0,
     sites: 0,
     domains: 0,
-    subscriptions: 0,
+    recurring: 0,
     invoices: 0,
     leads: 0,
   };
@@ -379,26 +379,39 @@ async function seed() {
       );
       stats.domains += 1;
 
+      // Wallet model: seed each service as a recurring wallet charge. Care
+      // plans are retired and skipped; "past_due" seeds an in-grace charge.
       for (const subscription of customer.subscriptions) {
+        if (subscription.plan.startsWith("care_")) continue;
+        const kind = subscription.plan.startsWith("hosting_")
+          ? "hosting"
+          : "database";
+        const status =
+          subscription.status === "canceled" ? "canceled" : "active";
+        const inGrace = subscription.status === "past_due";
         await client.query(
-          `INSERT INTO subscriptions
-            (customer_id, site_id, plan, provider, provider_sub_id, status, amount_cents, currency, interval, current_period_end, created_at)
+          `INSERT INTO recurring_charges
+            (customer_id, site_id, kind, plan_key, label, amount_cents, interval, status, low_balance_notified_at, next_charge_at, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
             customerId,
             siteId,
+            kind,
             subscription.plan,
-            "stripe",
-            `sub_${invoiceNumber(index, subscription.plan)}`,
-            subscription.status,
+            subscription.plan.replace(/_/g, " "),
             subscription.amountCents,
-            "USD",
             subscription.interval ?? "month",
-            daysFromNow(subscription.interval === "year" ? 315 : 24 + index),
+            status,
+            inGrace ? daysAgo(3) : null,
+            inGrace
+              ? daysAgo(3)
+              : daysFromNow(
+                  subscription.interval === "year" ? 315 : 24 + index,
+                ),
             daysAgo(88 - index * 7),
           ],
         );
-        stats.subscriptions += 1;
+        stats.recurring += 1;
       }
 
       const invoices = [
@@ -492,7 +505,7 @@ async function seed() {
     await client.query("COMMIT");
     console.log(
       `Seeded ${stats.customers} customers, ${stats.sites} sites, ${stats.domains} domains, ` +
-        `${stats.subscriptions} subscriptions, ${stats.invoices} invoices, and ${stats.leads} leads.`,
+        `${stats.recurring} recurring charges, ${stats.invoices} invoices, and ${stats.leads} leads.`,
     );
   } catch (error) {
     await client.query("ROLLBACK");

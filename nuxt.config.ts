@@ -162,6 +162,8 @@ export default defineNuxtConfig({
       // invoke the "billing:charge-recurring" task, or recurring billing and the
       // auto-suspend grace flow will never run.
       "0 6 * * *": ["billing:charge-recurring"],
+      // Mondays at 07:00 — email the admin a digest of expiring domains.
+      "0 7 * * 1": ["domains:expiry-digest"],
     },
   },
 

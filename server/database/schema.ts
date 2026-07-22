@@ -52,11 +52,6 @@ export const dbHosting = pgEnum("db_hosting", [
   "managed",
 ]);
 
-export const subscriptionStatus = pgEnum("subscription_status", [
-  "active",
-  "past_due",
-  "canceled",
-]);
 export const billingInterval = pgEnum("billing_interval", ["month", "year"]);
 
 export const invoiceType = pgEnum("invoice_type", [
@@ -239,41 +234,6 @@ export const domains = pgTable(
   (t) => [
     index("domains_customer_id_idx").on(t.customerId),
     index("domains_site_id_idx").on(t.siteId),
-  ],
-);
-
-/**
- * @deprecated Legacy Paystack-native card subscriptions. The app standardised on
- * the wallet model (`recurring_charges`); nothing writes this table anymore (the
- * webhook subscription/invoice handlers were removed). Kept for historical data;
- * drop in a future dedicated migration once confirmed unused.
- */
-export const subscriptions = pgTable(
-  "subscriptions",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    customerId: uuid("customer_id")
-      .notNull()
-      .references(() => customers.id, { onDelete: "cascade" }),
-    siteId: uuid("site_id").references(() => sites.id, {
-      onDelete: "set null",
-    }),
-    /** e.g. "hosting_dynamic", "care_basic", "db_medium". */
-    plan: text("plan").notNull(),
-    provider: text("provider").default("paystack").notNull(),
-    providerSubId: text("provider_sub_id"),
-    status: subscriptionStatus("status").default("active").notNull(),
-    amountCents: integer("amount_cents").notNull(),
-    currency: text("currency").default("USD").notNull(),
-    interval: billingInterval("interval").default("month").notNull(),
-    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (t) => [
-    index("subscriptions_customer_id_idx").on(t.customerId),
-    index("subscriptions_provider_sub_id_idx").on(t.providerSubId),
   ],
 );
 
@@ -585,8 +545,6 @@ export type Site = typeof sites.$inferSelect;
 export type NewSite = typeof sites.$inferInsert;
 export type Domain = typeof domains.$inferSelect;
 export type NewDomain = typeof domains.$inferInsert;
-export type Subscription = typeof subscriptions.$inferSelect;
-export type NewSubscription = typeof subscriptions.$inferInsert;
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type AdminUser = typeof adminUsers.$inferSelect;
