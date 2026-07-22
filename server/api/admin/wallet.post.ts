@@ -108,5 +108,15 @@ export default defineEventHandler(async (event) => {
     `customer:${customerId} ${type} ${amount}c — ${description}`,
   );
 
+  // A credit (e.g. an EFT recorded manually) may cover services that were
+  // paused for non-payment — recover them just like a Paystack top-up would.
+  if (direction === "credit") {
+    try {
+      await recoverSuspendedServices(customerId);
+    } catch (err) {
+      console.error("[admin/wallet] recovery after credit failed:", err);
+    }
+  }
+
   return { ok: true, balanceAfterCents: result.balanceAfterCents };
 });

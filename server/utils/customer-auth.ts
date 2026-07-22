@@ -27,7 +27,10 @@ export async function getOptionalCustomer(
 
   try {
     const decoded = await verifyIdToken(token);
-    if (!decoded.email) return null;
+    // Require a VERIFIED email: customers are matched/linked by email, so an
+    // unverified address could otherwise claim another customer's record.
+    // Google sign-in always verifies; this guards future providers.
+    if (!decoded.email || decoded.email_verified !== true) return null;
     return {
       uid: decoded.uid,
       email: decoded.email,

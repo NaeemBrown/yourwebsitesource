@@ -225,11 +225,11 @@ export function lowBalanceEmail(input: {
   const html = layout(`
     <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">Your wallet is running low</h1>
     <p style="margin:0 0 14px 0;">Hi ${esc(first)}, we couldn't cover your latest charge for <strong>${esc(input.serviceLabel)}</strong> (${esc(needed)}) — your wallet balance is ${esc(balance)}.</p>
-    <p style="margin:0 0 6px 0;">Please top up within <strong>${input.graceDays} days</strong> to keep your site online. After that we may need to suspend it until the balance is restored.</p>
+    <p style="margin:0 0 6px 0;">Please top up within <strong>${input.graceDays} days</strong> to keep your site online. If the balance isn't restored by then, your service will be suspended and your site taken offline until it is.</p>
     ${cta}
     <p style="margin:0;color:${MUTED};">Already topped up? You can ignore this message.</p>
   `);
-  const text = `Your wallet is running low\n\nHi ${first}, we couldn't cover your latest charge for ${input.serviceLabel} (${needed}). Balance: ${balance}.\n\nPlease top up within ${input.graceDays} days to keep your site online.${input.topupUrl ? `\n\nAdd funds: ${input.topupUrl}` : ""}`;
+  const text = `Your wallet is running low\n\nHi ${first}, we couldn't cover your latest charge for ${input.serviceLabel} (${needed}). Balance: ${balance}.\n\nPlease top up within ${input.graceDays} days to keep your site online. If the balance isn't restored by then, your service will be suspended and your site taken offline until it is.${input.topupUrl ? `\n\nAdd funds: ${input.topupUrl}` : ""}`;
   return { subject, html, text };
 }
 
@@ -253,6 +253,174 @@ export function suspensionEmail(input: {
     <p style="margin:0;color:${MUTED};">Questions? Just reply to this email.</p>
   `);
   const text = `${site} has been suspended\n\nHi ${first}, because your wallet balance stayed empty through the grace period, we've temporarily suspended ${site}.\n\nTop up your wallet and we'll restore it right away — no data is lost.${input.topupUrl ? `\n\nAdd funds: ${input.topupUrl}` : ""}`;
+  return { subject, html, text };
+}
+
+/** Notice that a suspended service was restored after a top-up. */
+export function serviceRestoredEmail(input: {
+  name?: string | null;
+  siteName?: string | null;
+}): EmailContent {
+  const first = (input.name ?? "").split(" ")[0] || "there";
+  const site = input.siteName || "your site";
+  const subject = `${BRAND}: ${site} is back online`;
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">${esc(site)} is back online \u2705</h1>
+    <p style="margin:0 0 14px 0;">Hi ${esc(first)}, thanks for topping up \u2014 we've charged the outstanding service, restored <strong>${esc(site)}</strong>, and resumed normal billing.</p>
+    <p style="margin:0;color:${MUTED};">Questions? Just reply to this email.</p>
+  `);
+  const text = `${site} is back online\n\nHi ${first}, thanks for topping up \u2014 we've charged the outstanding service, restored ${site}, and resumed normal billing.`;
+  return { subject, html, text };
+}
+
+/** Confirmation when a customer cancels a recurring service. */
+export function serviceCanceledEmail(input: {
+  name?: string | null;
+  serviceLabel: string;
+  paidThrough?: Date | null;
+}): EmailContent {
+  const first = (input.name ?? "").split(" ")[0] || "there";
+  const until = input.paidThrough
+    ? new Date(input.paidThrough).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+  const subject = `${BRAND}: ${input.serviceLabel} canceled`;
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">Service canceled</h1>
+    <p style="margin:0 0 14px 0;">Hi ${esc(first)}, we've canceled <strong>${esc(input.serviceLabel)}</strong> as requested. No further charges will be made for it.</p>
+    ${until ? `<p style="margin:0 0 14px 0;">You've already paid through <strong>${esc(until)}</strong>, so everything keeps running until then.</p>` : ""}
+    <p style="margin:0;color:${MUTED};">Changed your mind? Just reply to this email and we'll set it back up.</p>
+  `);
+  const text = `Service canceled\n\nHi ${first}, we've canceled ${input.serviceLabel} as requested. No further charges will be made for it.${until ? `\n\nYou've already paid through ${until}, so everything keeps running until then.` : ""}`;
+  return { subject, html, text };
+}
+
+/** Quote sent to a customer once an admin has scoped a change request. */
+export function changeQuoteEmail(input: {
+  name?: string | null;
+  title: string;
+  quotedCents: number;
+  accountUrl?: string | null;
+}): EmailContent {
+  const first = (input.name ?? "").split(" ")[0] || "there";
+  const amount = formatMoney(input.quotedCents, "USD");
+  const subject = `Your quote from ${BRAND} \u2014 ${amount}`;
+  const cta = input.accountUrl
+    ? `<p style="margin:18px 0;">${button(input.accountUrl, "Review and approve")}</p>`
+    : "";
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">Your quote is ready</h1>
+    <p style="margin:0 0 14px 0;">Hi ${esc(first)}, we've scoped your request and it comes to:</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;font-size:14px;">
+      <tr><td style="padding:4px 12px 4px 0;color:${MUTED};">Request</td><td style="padding:4px 0;color:${TEXT};">${esc(input.title)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:${MUTED};">Quote</td><td style="padding:4px 0;color:${TEXT};font-weight:600;">${esc(amount)}</td></tr>
+    </table>
+    <p style="margin:0 0 6px 0;">Approve it from your account and the amount is paid from your prepaid wallet \u2014 we'll start right away. Nothing is charged until you approve.</p>
+    ${cta}
+    <p style="margin:0;color:${MUTED};">Questions about the scope? Just reply to this email.</p>
+  `);
+  const text = `Your quote is ready\n\nHi ${first},\n\nRequest: ${input.title}\nQuote: ${amount}\n\nApprove it from your account and the amount is paid from your prepaid wallet. Nothing is charged until you approve.${input.accountUrl ? `\n\nReview and approve: ${input.accountUrl}` : ""}`;
+  return { subject, html, text };
+}
+
+/** Receipt when a customer approves a quoted change (wallet debited). */
+export function changeApprovedEmail(input: {
+  name?: string | null;
+  title: string;
+  amountCents: number;
+  balanceAfterCents: number;
+}): EmailContent {
+  const first = (input.name ?? "").split(" ")[0] || "there";
+  const amount = formatMoney(input.amountCents, "USD");
+  const balance = formatMoney(input.balanceAfterCents, "USD");
+  const subject = `Change approved \u2014 ${amount} paid from your wallet`;
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">Change approved \u2705</h1>
+    <p style="margin:0 0 14px 0;">Thanks, ${esc(first)} \u2014 we've received your approval for <strong>${esc(input.title)}</strong> and the work is now queued.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;font-size:14px;">
+      <tr><td style="padding:4px 12px 4px 0;color:${MUTED};">Paid from wallet</td><td style="padding:4px 0;color:${TEXT};font-weight:600;">${esc(amount)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:${MUTED};">New balance</td><td style="padding:4px 0;color:${TEXT};font-weight:600;">${esc(balance)}</td></tr>
+    </table>
+    <p style="margin:0;color:${MUTED};">We'll let you know as soon as it's live.</p>
+  `);
+  const text = `Change approved\n\nThanks, ${first} \u2014 we've received your approval for "${input.title}" and the work is now queued.\n\nPaid from wallet: ${amount}\nNew balance: ${balance}`;
+  return { subject, html, text };
+}
+
+/** Internal alert to the admin inbox when a customer account goes overdue. */
+export function adminOverdueAlertEmail(input: {
+  customerName: string;
+  customerEmail: string;
+  serviceLabel: string;
+  balanceCents: number;
+  chargeCents: number;
+  stage: "grace" | "suspended";
+  siteName?: string | null;
+  graceDays?: number;
+}): EmailContent {
+  const inGrace = input.stage === "grace";
+  const subject = inGrace
+    ? `Overdue: ${input.customerName} can't cover ${input.serviceLabel}`
+    : `Suspended: ${input.customerName} \u2014 ${input.siteName || input.serviceLabel}`;
+  const body = inGrace
+    ? `<p style="margin:0 0 14px 0;"><strong>${esc(input.customerName)}</strong> (${esc(input.customerEmail)}) couldn't cover <strong>${esc(input.serviceLabel)}</strong> (${esc(formatMoney(input.chargeCents, "USD"))}). Balance: ${esc(formatMoney(input.balanceCents, "USD"))}. The ${input.graceDays ?? 10}-day grace window has started.</p>`
+    : `<p style="margin:0 0 14px 0;">The grace window for <strong>${esc(input.customerName)}</strong> (${esc(input.customerEmail)}) expired. <strong>${esc(input.siteName || "their site")}</strong> has been suspended and <strong>${esc(input.serviceLabel)}</strong> paused.</p>`;
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">${inGrace ? "Customer account overdue" : "Site suspended for non-payment"}</h1>
+    ${body}
+  `);
+  const text = inGrace
+    ? `${input.customerName} (${input.customerEmail}) couldn't cover ${input.serviceLabel} (${formatMoney(input.chargeCents, "USD")}). Balance: ${formatMoney(input.balanceCents, "USD")}. The ${input.graceDays ?? 10}-day grace window has started.`
+    : `Grace expired for ${input.customerName} (${input.customerEmail}). ${input.siteName || "Their site"} has been suspended and ${input.serviceLabel} paused.`;
+  return { subject, html, text };
+}
+
+/** Weekly digest of domains that are expired or expiring within 30 days. */
+export function domainExpiryDigestEmail(input: {
+  digest: import("./domain-digest").DomainDigest;
+}): EmailContent {
+  const { expired, urgent, upcoming, total } = input.digest;
+  const subject = `Domain renewals: ${total} need${total === 1 ? "s" : ""} attention${expired.length ? ` (${expired.length} EXPIRED)` : ""}`;
+
+  const section = (
+    title: string,
+    entries: typeof expired,
+    color: string,
+  ): string => {
+    if (!entries.length) return "";
+    const rows = entries
+      .map(
+        (e) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:${TEXT};font-weight:600;">${esc(e.fqdn)}</td><td style="padding:4px 12px 4px 0;color:${MUTED};">${esc(e.customerName)}</td><td style="padding:4px 12px 4px 0;color:${color};white-space:nowrap;">${e.daysLeft < 0 ? `expired ${-e.daysLeft}d ago` : `${e.daysLeft}d left`}</td><td style="padding:4px 0;color:${MUTED};">${e.autoRenew ? "auto-renew" : "MANUAL"}</td></tr>`,
+      )
+      .join("");
+    return `<p style="margin:16px 0 6px 0;color:${color};font-weight:600;">${esc(title)}</p><table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;">${rows}</table>`;
+  };
+
+  const html = layout(`
+    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">Weekly domain renewal digest</h1>
+    <p style="margin:0 0 6px 0;">${total} domain${total === 1 ? "" : "s"} need${total === 1 ? "s" : ""} attention in the next 30 days. Renew at the registrar, then update the expiry date in /admin/domains.</p>
+    ${section("Expired", expired, "#f87171")}
+    ${section("Expiring within 7 days", urgent, "#fbbf24")}
+    ${section("Expiring within 30 days", upcoming, TEXT)}
+  `);
+
+  const line = (e: (typeof expired)[number]) =>
+    `- ${e.fqdn} (${e.customerName}): ${e.daysLeft < 0 ? `expired ${-e.daysLeft}d ago` : `${e.daysLeft}d left`}${e.autoRenew ? "" : " [manual renew]"}`;
+  const text = [
+    `Weekly domain renewal digest \u2014 ${total} need attention.`,
+    expired.length ? `\nEXPIRED:\n${expired.map(line).join("\n")}` : "",
+    urgent.length ? `\nWithin 7 days:\n${urgent.map(line).join("\n")}` : "",
+    upcoming.length
+      ? `\nWithin 30 days:\n${upcoming.map(line).join("\n")}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   return { subject, html, text };
 }
 

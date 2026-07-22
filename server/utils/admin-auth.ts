@@ -60,10 +60,10 @@ export async function requireAdmin(event: H3Event): Promise<AdminIdentity> {
     });
   }
 
-  if (!decoded.email) {
+  if (!decoded.email || decoded.email_verified !== true) {
     throw createError({
       statusCode: 403,
-      statusMessage: "No email on account.",
+      statusMessage: "No verified email on account.",
     });
   }
   if (!isAdminEmail(decoded.email)) {

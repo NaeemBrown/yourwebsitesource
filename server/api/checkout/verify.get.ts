@@ -41,6 +41,19 @@ export default defineEventHandler(async (event) => {
           balanceAfterCents: null,
         };
       }
+
+      // Top-ups leave a wallet ledger row keyed by the reference — check it
+      // too, so a transient Paystack verify failure after the webhook already
+      // credited doesn't show the customer a pending state.
+      if (await walletHasReference(reference)) {
+        return {
+          reference,
+          status: "success",
+          kind: "topup",
+          paid: true,
+          balanceAfterCents: null,
+        };
+      }
     }
 
     return {

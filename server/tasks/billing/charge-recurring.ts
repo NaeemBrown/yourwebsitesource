@@ -1,8 +1,13 @@
 import { and, eq, lte } from "drizzle-orm";
 import { useDb, schema } from "../../utils/db";
 import { debitWallet } from "../../utils/wallet";
-import { sendEmail, getSupportEmail } from "../../utils/email";
-import { lowBalanceEmail, suspensionEmail } from "../../utils/email-templates";
+import { sendEmail, getSupportEmail, getMailAdmin } from "../../utils/email";
+import {
+  lowBalanceEmail,
+  suspensionEmail,
+  adminOverdueAlertEmail,
+} from "../../utils/email-templates";
+import { nextChargeAfter } from "../../utils/billing-cycle";
 
 /**
  * Scheduled task: debit due recurring charges from customer wallets
@@ -21,7 +26,7 @@ import { lowBalanceEmail, suspensionEmail } from "../../utils/email-templates";
  * double-charging.
  */
 
-const GRACE_DAYS = 7;
+const GRACE_DAYS = 10;
 
 /** Thrown inside the charge transaction to roll back when the wallet is short. */
 class InsufficientFundsError extends Error {
@@ -144,10 +149,17 @@ export default defineTask({
                 .where(eq(schema.sites.id, rc.siteId));
             }
 
+            // nextChargeAfter always lands strictly in the future — a stale
+            // anchor (pause/resume, downtime) can never cause a re-charge on
+            // every subsequent daily run.
             await tx
               .update(schema.recurringCharges)
               .set({
-                nextChargeAt: advanced,
+                nextChargeAt: nextChargeAfter(
+                  rc.nextChargeAt,
+                  rc.interval,
+                  now,
+                ),
                 lowBalanceNotifiedAt: null,
                 lastChargedAt: now,
                 failureCount: 0,
@@ -187,6 +199,19 @@ export default defineTask({
               replyTo: getSupportEmail(),
               ...mail,
             });
+          }
+          const adminInbox = getMailAdmin();
+          if (adminInbox) {
+            const alert = adminOverdueAlertEmail({
+              customerName: customer.name,
+              customerEmail: customer.email,
+              serviceLabel: rc.label,
+              balanceCents: balanceAfterCents,
+              chargeCents: rc.amountCents,
+              stage: "grace",
+              graceDays: GRACE_DAYS,
+            });
+            void sendEmail({ to: adminInbox, ...alert });
           }
           continue;
         }
@@ -228,6 +253,19 @@ export default defineTask({
               replyTo: getSupportEmail(),
               ...mail,
             });
+          }
+          const adminInbox = getMailAdmin();
+          if (adminInbox) {
+            const alert = adminOverdueAlertEmail({
+              customerName: customer.name,
+              customerEmail: customer.email,
+              serviceLabel: rc.label,
+              balanceCents: balanceAfterCents,
+              chargeCents: rc.amountCents,
+              stage: "suspended",
+              siteName,
+            });
+            void sendEmail({ to: adminInbox, ...alert });
           }
         } else {
           // Still within grace — flag the continued shortfall as a billing

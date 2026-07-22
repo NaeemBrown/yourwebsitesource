@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { recoverSuspendedServices } from "./recovery";
 
 /** Internal sentinel: thrown to roll back a build transaction when the wallet
  * debit comes up short, without surfacing as a generic 500. */
@@ -121,6 +122,17 @@ async function finalizeTopup(
     return { ok: true, status: "success", kind: "topup" };
   }
 
+  // The new funds may cover services that were paused/suspended for
+  // non-payment — recover them now rather than waiting for an admin.
+  try {
+    await recoverSuspendedServices(customerId);
+  } catch (err) {
+    console.error(
+      `[fulfillment] recovery after topup ${reference} failed:`,
+      err,
+    );
+  }
+
   if (customer.email) {
     const mail = walletTopupEmail({
       name: customer.name,
@@ -163,13 +175,15 @@ async function finalizeBuild(
 
   const walletApplyCents = Math.max(0, Number(meta.walletApplyCents ?? 0));
 
-  // Wallet debit + invoice→paid + project transition all commit together. If the
-  // debit comes up short, the sentinel rolls the whole thing back so we never
-  // leave money debited against an unpaid invoice (and a retry stays clean,
-  // since no wallet row was committed).
+  // Wallet debit + invoice→paid + project transition all commit together.
+  let wentNegativeCents = 0;
   try {
     await db.transaction(async (tx) => {
       if (walletApplyCents > 0) {
+        // Paystack has already captured the remainder, so this debit MUST
+        // land — even if the balance moved since checkout was created. A
+        // small negative balance (alerted to admin below) beats taking the
+        // customer's money and leaving the order unfulfilled.
         const walletResult = await debitWallet({
           customerId: invoice.customerId,
           type: "build",
@@ -178,11 +192,11 @@ async function finalizeBuild(
           reference,
           siteId: invoice.siteId,
           createdBy: "system",
-          allowNegative: false,
+          allowNegative: true,
           tx,
         });
-        if (!walletResult.ok) {
-          throw new WalletInsufficientError(walletResult.shortfallCents ?? 0);
+        if (walletResult.ok && walletResult.balanceAfterCents < 0) {
+          wentNegativeCents = walletResult.balanceAfterCents;
         }
       }
 
@@ -249,6 +263,21 @@ async function finalizeBuild(
       return { ok: false, status: "wallet_insufficient", kind: "build" };
     }
     throw err;
+  }
+
+  if (wentNegativeCents < 0) {
+    console.warn(
+      `[fulfillment] build ${reference} pushed wallet negative (${wentNegativeCents}c) for customer ${invoice.customerId}.`,
+    );
+    const adminInbox = getMailAdmin();
+    if (adminInbox) {
+      void sendEmail({
+        to: adminInbox,
+        subject: `Wallet went negative on build ${reference}`,
+        html: `<p>Fulfilling build <strong>${esc(reference)}</strong> debited a wallet portion after the balance had dropped. Customer ${esc(invoice.customerId)} now sits at ${(wentNegativeCents / 100).toFixed(2)} USD. Review and follow up.</p>`,
+        text: `Fulfilling build ${reference} pushed customer ${invoice.customerId} to ${(wentNegativeCents / 100).toFixed(2)} USD. Review and follow up.`,
+      });
+    }
   }
 
   const [customer] = await db

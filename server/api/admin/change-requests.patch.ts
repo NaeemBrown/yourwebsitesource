@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { MAX_RECURRING_MONTHLY_USD_CENTS } from "../../../shared/billing";
 import {
   CHANGE_REQUEST_ADMIN_STATUSES,
@@ -45,14 +45,60 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDb();
+
+  // Quoting is conditional on the request not already being approved/paid —
+  // otherwise an admin re-quote racing a customer approval could silently
+  // flip a paid request back to `quoted`.
+  const where =
+    body.status === "quoted"
+      ? and(
+          eq(schema.changeRequests.id, body.id),
+          inArray(schema.changeRequests.status, ["open", "quoted", "declined"]),
+        )
+      : eq(schema.changeRequests.id, body.id);
+
   const [row] = await db
     .update(schema.changeRequests)
     .set(updates)
-    .where(eq(schema.changeRequests.id, body.id))
+    .where(where)
     .returning();
 
   if (!row) {
+    const [exists] = await db
+      .select({ status: schema.changeRequests.status })
+      .from(schema.changeRequests)
+      .where(eq(schema.changeRequests.id, body.id))
+      .limit(1);
+    if (exists) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: `Can't quote a request that is already ${exists.status}. Refresh first.`,
+      });
+    }
     throw createError({ statusCode: 404, statusMessage: "Request not found." });
+  }
+
+  // Email the customer their quote with a review-and-approve link.
+  if (body.status === "quoted" && updates.quotedCents) {
+    const [customer] = await db
+      .select()
+      .from(schema.customers)
+      .where(eq(schema.customers.id, row.customerId))
+      .limit(1);
+    if (customer?.email) {
+      const base = process.env.NUXT_PUBLIC_SITE_URL;
+      const mail = changeQuoteEmail({
+        name: customer.name,
+        title: row.title,
+        quotedCents: updates.quotedCents,
+        accountUrl: base ? `${base.replace(/\/$/, "")}/account` : null,
+      });
+      void sendEmail({
+        to: customer.email,
+        replyTo: getSupportEmail(),
+        ...mail,
+      });
+    }
   }
 
   await writeAudit(

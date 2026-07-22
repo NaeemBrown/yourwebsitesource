@@ -136,8 +136,35 @@ export default defineEventHandler(async (event) => {
     return {
       balanceAfterCents: debit.balanceAfterCents,
       invoiceId: invoice?.id,
+      amountCents: cr.quotedCents,
+      title: cr.title,
     };
   });
 
-  return { ok: true, ...result };
+  // Notify both parties (best-effort, after the money has safely moved).
+  if (customer.email) {
+    const mail = changeApprovedEmail({
+      name: customer.name,
+      title: result.title,
+      amountCents: result.amountCents,
+      balanceAfterCents: result.balanceAfterCents,
+    });
+    void sendEmail({ to: customer.email, replyTo: getSupportEmail(), ...mail });
+  }
+  const adminInbox = getMailAdmin();
+  if (adminInbox) {
+    void sendEmail({
+      to: adminInbox,
+      replyTo: customer.email,
+      subject: `Quote approved: ${customer.name} — ${result.title}`,
+      html: `<p><strong>${esc(customer.name)}</strong> (${esc(customer.email)}) approved the quote for <strong>${esc(result.title)}</strong> (${(result.amountCents / 100).toFixed(2)} USD, paid from wallet). Time to start the work.</p>`,
+      text: `${customer.name} (${customer.email}) approved the quote for "${result.title}" (${(result.amountCents / 100).toFixed(2)} USD, paid from wallet).`,
+    });
+  }
+
+  return {
+    ok: true,
+    balanceAfterCents: result.balanceAfterCents,
+    invoiceId: result.invoiceId,
+  };
 });

@@ -99,14 +99,23 @@ export async function creditWallet(
   }
 }
 
-/** Detect a Postgres unique-constraint violation (SQLSTATE 23505). */
+/**
+ * Detect a Postgres unique-constraint violation (SQLSTATE 23505). Drizzle
+ * wraps driver errors (DrizzleQueryError) with the original pg error on
+ * `cause`, so walk the cause chain rather than only checking the top level —
+ * otherwise a real webhook+verify race surfaces as a 500 instead of deduping.
+ */
 export function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "23505"
-  );
+  let current: unknown = err;
+  for (
+    let depth = 0;
+    depth < 5 && typeof current === "object" && current !== null;
+    depth++
+  ) {
+    if ((current as { code?: string }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
