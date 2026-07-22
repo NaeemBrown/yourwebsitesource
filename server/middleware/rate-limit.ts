@@ -29,6 +29,9 @@ interface Rule {
 const RULES: Record<string, Rule> = {
   "/api/contact": { max: 10, windowMs: 60 * 60 * 1000 }, // 10 / hour
   "/api/checkout/create": { max: 30, windowMs: 60 * 60 * 1000 }, // 30 / hour
+  // Unauthenticated insert + admin email per call — same abuse surface as
+  // /api/contact.
+  "/api/checkout/brief": { max: 10, windowMs: 60 * 60 * 1000 }, // 10 / hour
   // Admin surface (S3): throttle every method so a stolen token can't be driven
   // at machine speed. Money-moving routes get a tighter, separate bucket.
   "/api/admin/wallet": {

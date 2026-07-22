@@ -64,6 +64,7 @@ async function finalizeTopup(
   reference: string,
   verified: {
     amount: number;
+    currency?: string;
     customer?: { email?: string; customer_code?: string };
   },
   meta: Record<string, unknown>,
@@ -81,6 +82,33 @@ async function finalizeTopup(
       `[fulfillment] topup ${reference} missing customerId/usdCents metadata.`,
     );
     return { ok: false, status: "missing_metadata" };
+  }
+
+  // Metadata is only trustworthy if WE initialised the transaction: anyone
+  // holding the public key can create one with arbitrary usdCents/customerId.
+  // The HMAC (minted at init) proves the amounts are ours; the amount/currency
+  // check proves Paystack actually captured the ZAR those cents cost.
+  const zarCents = Number(meta.zarCents ?? 0);
+  const sigOk = verifyCheckoutSignature(
+    {
+      purpose: "topup",
+      customerId,
+      reference,
+      usdCents,
+      walletApplyCents: 0,
+      zarCents,
+    },
+    meta.sig,
+  );
+  if (!sigOk) {
+    console.warn(`[fulfillment] topup ${reference} has an invalid signature.`);
+    return { ok: false, status: "invalid_signature" };
+  }
+  if (verified.currency !== "ZAR" || verified.amount < zarCents) {
+    console.warn(
+      `[fulfillment] topup ${reference} paid ${verified.amount} ${verified.currency}, expected ${zarCents} ZAR.`,
+    );
+    return { ok: false, status: "amount_mismatch" };
   }
 
   const db = useDb();
@@ -155,7 +183,11 @@ async function finalizeTopup(
 
 async function finalizeBuild(
   reference: string,
-  verified: { customer?: { email?: string; customer_code?: string } },
+  verified: {
+    amount: number;
+    currency?: string;
+    customer?: { email?: string; customer_code?: string };
+  },
   meta: Record<string, unknown>,
 ): Promise<FinalizeResult> {
   const db = useDb();
@@ -175,10 +207,52 @@ async function finalizeBuild(
 
   const walletApplyCents = Math.max(0, Number(meta.walletApplyCents ?? 0));
 
+  // Only honour metadata WE signed at init (see finalizeTopup) — otherwise a
+  // reference whose Paystack init failed could be re-initialised client-side
+  // for R1 with a forged walletApplyCents and settle a full-price invoice.
+  const zarCents = Number(meta.zarCents ?? 0);
+  const sigOk = verifyCheckoutSignature(
+    {
+      purpose: "build",
+      customerId: invoice.customerId,
+      reference,
+      usdCents: Number(meta.usdCents ?? 0),
+      walletApplyCents,
+      zarCents,
+    },
+    meta.sig,
+  );
+  if (!sigOk) {
+    console.warn(`[fulfillment] build ${reference} has an invalid signature.`);
+    return { ok: false, status: "invalid_signature", kind: "build" };
+  }
+  if (verified.currency !== "ZAR" || verified.amount < zarCents) {
+    console.warn(
+      `[fulfillment] build ${reference} paid ${verified.amount} ${verified.currency}, expected ${zarCents} ZAR.`,
+    );
+    return { ok: false, status: "amount_mismatch", kind: "build" };
+  }
+
   // Wallet debit + invoice→paid + project transition all commit together.
   let wentNegativeCents = 0;
+  let alreadyPaid = false;
   try {
     await db.transaction(async (tx) => {
+      // Serialise the webhook + success-page verify pair: lock the invoice row
+      // and re-check its status so only one runner transitions it — the loser
+      // parks here until the winner commits, then bails without a second site,
+      // activity row, or receipt.
+      const [locked] = await tx
+        .select({ status: schema.invoices.status })
+        .from(schema.invoices)
+        .where(eq(schema.invoices.id, invoice.id))
+        .for("update")
+        .limit(1);
+      if (!locked || locked.status === "paid") {
+        alreadyPaid = true;
+        return;
+      }
+
       if (walletApplyCents > 0) {
         // Paystack has already captured the remainder, so this debit MUST
         // land — even if the balance moved since checkout was created. A
@@ -195,7 +269,13 @@ async function finalizeBuild(
           allowNegative: true,
           tx,
         });
-        if (walletResult.ok && walletResult.balanceAfterCents < 0) {
+        // Unreachable while allowNegative is true, but if that ever changes a
+        // refused debit must roll the whole fulfillment back — not mark the
+        // invoice paid with the wallet portion silently uncollected.
+        if (!walletResult.ok) {
+          throw new WalletInsufficientError(walletResult.shortfallCents ?? 0);
+        }
+        if (walletResult.balanceAfterCents < 0) {
           wentNegativeCents = walletResult.balanceAfterCents;
         }
       }
@@ -263,6 +343,11 @@ async function finalizeBuild(
       return { ok: false, status: "wallet_insufficient", kind: "build" };
     }
     throw err;
+  }
+
+  // A concurrent run already fulfilled this invoice — nothing left to do.
+  if (alreadyPaid) {
+    return { ok: true, status: "success", kind: "build" };
   }
 
   if (wentNegativeCents < 0) {

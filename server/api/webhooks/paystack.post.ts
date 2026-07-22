@@ -20,8 +20,11 @@ import type { PaystackData, PaystackEvent } from "../../types/paystack";
  *  - We reject any request whose signature doesn't verify (401).
  *  - Handlers are idempotent: Paystack retries delivery.
  *
- * We always return 200 quickly once the signature is valid so Paystack stops
- * retrying; handler issues are logged, not surfaced as 500s.
+ * Unknown events are acknowledged with 200 so Paystack stops retrying them.
+ * Handler FAILURES return 500 on purpose: the handlers are idempotent (unique
+ * ledger reference, invoice paid-check), so Paystack's redelivery is the
+ * recovery path for transient errors — swallowing them would leave captured
+ * money unfulfilled with no retry.
  */
 export default defineEventHandler(async (event) => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -78,8 +81,14 @@ export default defineEventHandler(async (event) => {
         console.info(`[paystack] ignoring event: ${type}`);
     }
   } catch (err) {
-    // Log but still 200: a 500 just makes Paystack redeliver the same event.
+    // Surface as 500 so Paystack redelivers — fulfillment is idempotent, and
+    // redelivery is the only automatic recovery for a transient DB failure
+    // (the customer may never revisit the success page to trigger verify).
     console.error(`[paystack] handler for "${type}" failed:`, err);
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Webhook handler failed; Paystack will retry.",
+    });
   }
 
   return { received: true };
@@ -96,7 +105,19 @@ export default defineEventHandler(async (event) => {
 async function handleChargeSuccess(data: PaystackData) {
   const reference = data.reference;
   if (!reference) return;
-  await finalizeByReference(reference);
+  const result = await finalizeByReference(reference);
+  // Transient outcomes come back as results, not throws — surface them so the
+  // 500 path triggers redelivery: verify_failed is a Paystack API
+  // timeout/5xx, and the pending-family statuses appear when the verify API
+  // lags the charge.success event. Permanent outcomes (invalid_signature,
+  // amount_mismatch, ...) would fail identically on every retry, so those
+  // are ACKed.
+  const RETRYABLE = ["verify_failed", "pending", "ongoing", "processing", "queued"];
+  if (!result.ok && RETRYABLE.includes(result.status)) {
+    throw new Error(
+      `fulfillment not final for ${reference} (${result.status}); awaiting redelivery`,
+    );
+  }
 }
 
 /* ------------------------------- helpers ------------------------------- */

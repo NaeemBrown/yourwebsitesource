@@ -71,7 +71,7 @@ const sections = [
   {
     heading: "8. Non-payment, suspension, and offboarding",
     body: [
-      "Recurring hosting is deducted from your prepaid wallet in advance. If the wallet cannot cover a due charge, a 7-day grace period begins and we will send a low-balance warning. If the balance is not restored during that period, we may suspend your site until sufficient credit is added.",
+      "Recurring hosting is deducted from your prepaid wallet in advance. If the wallet cannot cover a due charge, a 10-day grace period begins and we will send a low-balance warning. If the balance is not restored during that period, we may suspend your site until sufficient credit is added.",
       "On cancellation or termination, we will, on request and where you are not in breach, provide a reasonable export of your site files and database, and assist with handing off your domain. We may retain backups for a limited period and then delete them.",
       "We are not obliged to retain or restore data after offboarding is complete.",
     ],

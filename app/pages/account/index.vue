@@ -37,7 +37,16 @@ const requests = ref<ChangeRequest[]>([]);
 const upcomingCosts = ref<UpcomingCost[]>([]);
 const activeProjectId = ref("");
 const projectNotes = ref("");
+// Server-loaded notes value + owning project, so a background reload never
+// clobbers typed-but-unsaved edits to the same project's notes.
+const notesProjectId = ref("");
+const notesLoaded = ref("");
 const projectBusy = ref(false);
+// One error ref per action so a failure renders only beside the control that
+// caused it (they'd otherwise appear in all three sections at once).
+const notesError = ref<string | null>(null);
+const actionsError = ref<string | null>(null);
+const fileError = ref<string | null>(null);
 const fileName = ref("");
 const fileUrl = ref("");
 const pending = ref(true);
@@ -136,7 +145,11 @@ async function load() {
     requests.value = p.requests;
     upcomingCosts.value = p.upcomingCosts;
     activeProjectId.value ||= p.projects[0]?.id ?? "";
-    projectNotes.value = p.projects[0]?.customerNotes ?? "";
+    syncProjectNotes(
+      p.projects.find((project) => project.id === activeProjectId.value) ??
+        p.projects[0] ??
+        null,
+    );
   } catch (e) {
     const err = e as {
       data?: { statusMessage?: string };
@@ -151,13 +164,33 @@ async function load() {
   }
 }
 
+/** Refresh the notes textarea from server state — but only when the active
+ * project changed or the textarea isn't dirty, so unsaved text survives. */
+function syncProjectNotes(project: CustomerProject | null) {
+  const dirty = projectNotes.value !== notesLoaded.value;
+  if ((project?.id ?? "") !== notesProjectId.value || !dirty) {
+    projectNotes.value = project?.customerNotes ?? "";
+  }
+  notesProjectId.value = project?.id ?? "";
+  notesLoaded.value = project?.customerNotes ?? "";
+}
+
 watch(activeProject, (project) => {
-  projectNotes.value = project?.customerNotes ?? "";
+  syncProjectNotes(project);
 });
+
+function projectErrMsg(e: unknown, fallback: string) {
+  const err = e as {
+    data?: { statusMessage?: string };
+    statusMessage?: string;
+  };
+  return err?.data?.statusMessage || err?.statusMessage || fallback;
+}
 
 async function saveProjectNotes() {
   if (!activeProject.value) return;
   projectBusy.value = true;
+  notesError.value = null;
   try {
     await authFetch("/api/account/projects", {
       method: "PATCH",
@@ -167,6 +200,9 @@ async function saveProjectNotes() {
       },
     });
     activeProject.value.customerNotes = projectNotes.value;
+    notesLoaded.value = projectNotes.value;
+  } catch (e) {
+    notesError.value = projectErrMsg(e, "Could not save your notes.");
   } finally {
     projectBusy.value = false;
   }
@@ -175,12 +211,15 @@ async function saveProjectNotes() {
 async function completeAction(actionId: string) {
   if (!activeProject.value) return;
   projectBusy.value = true;
+  actionsError.value = null;
   try {
     await authFetch("/api/account/projects", {
       method: "PATCH",
       body: { projectId: activeProject.value.id, actionId },
     });
     await load();
+  } catch (e) {
+    actionsError.value = projectErrMsg(e, "Could not mark that complete.");
   } finally {
     projectBusy.value = false;
   }
@@ -194,6 +233,7 @@ async function addProjectFile() {
   )
     return;
   projectBusy.value = true;
+  fileError.value = null;
   try {
     await authFetch("/api/account/project-files", {
       method: "POST",
@@ -206,6 +246,8 @@ async function addProjectFile() {
     fileName.value = "";
     fileUrl.value = "";
     await load();
+  } catch (e) {
+    fileError.value = projectErrMsg(e, "Could not save the file link.");
   } finally {
     projectBusy.value = false;
   }
@@ -613,6 +655,9 @@ useSeoMeta({ title: "My account — TheWebsiteForge", robots: "noindex" });
                   </button>
                 </article>
               </div>
+              <p v-if="actionsError" class="mt-4 text-xs text-rose-700">
+                {{ actionsError }}
+              </p>
             </section>
 
             <div v-if="activeProject" class="grid gap-6 lg:grid-cols-2">
@@ -663,6 +708,9 @@ useSeoMeta({ title: "My account — TheWebsiteForge", robots: "noindex" });
                 >
                   Save notes
                 </button>
+                <p v-if="notesError" class="mt-2 text-xs text-rose-300">
+                  {{ notesError }}
+                </p>
               </section>
 
               <section class="glass rounded-[1.75rem] p-6">
@@ -714,6 +762,9 @@ useSeoMeta({ title: "My account — TheWebsiteForge", robots: "noindex" });
                       Add
                     </button>
                   </div>
+                  <p v-if="fileError" class="mt-2 text-xs text-rose-300">
+                    {{ fileError }}
+                  </p>
                 </div>
 
                 <h3 class="mt-8 text-xs font-semibold text-white/50">
@@ -806,7 +857,7 @@ useSeoMeta({ title: "My account — TheWebsiteForge", robots: "noindex" });
                     <p class="mt-2 text-xs leading-relaxed text-slate-500">
                       Recurring services draw from this balance. If it cannot
                       cover a charge, we warn you and keep services active for a
-                      7-day grace period.
+                      10-day grace period.
                     </p>
                     <p v-if="topupError" class="mt-2 text-sm text-white">
                       {{ topupError }}

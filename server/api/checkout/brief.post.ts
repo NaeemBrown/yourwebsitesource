@@ -21,6 +21,15 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // The middleware size guard only sees Content-Length, which chunked
+    // requests omit — bound the stored payload here too.
+    if (JSON.stringify(answers).length > 32_000) {
+      throw createError({
+        statusCode: 413,
+        statusMessage: "Project brief is too large.",
+      });
+    }
+
     const [brief] = await useDb()
       .insert(schema.checkoutBriefs)
       .values({ email, planKey, answers })

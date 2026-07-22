@@ -89,19 +89,33 @@ export async function resolveCustomer(
 
   if (!options.createIfMissing) return null;
 
-  const [created] = await db
-    .insert(schema.customers)
-    .values({
-      name: identity.name || identity.email,
-      email: identity.email,
-      firebaseUid: identity.uid,
-    })
-    .returning();
-  if (!created) {
+  try {
+    const [created] = await db
+      .insert(schema.customers)
+      .values({
+        name: identity.name || identity.email,
+        email: identity.email,
+        firebaseUid: identity.uid,
+      })
+      .returning();
+    if (created) return created;
+  } catch (err) {
+    // A first-time user's portal fires several account requests in parallel,
+    // and each may reach this insert — the unique email constraint lets one
+    // win; the rest reuse its row instead of 500ing the first page load.
+    if (!isUniqueViolation(err)) throw err;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(schema.customers)
+    .where(eq(schema.customers.email, identity.email))
+    .limit(1);
+  if (!existing) {
     throw createError({
       statusCode: 500,
       statusMessage: "Failed to create customer record.",
     });
   }
-  return created;
+  return existing;
 }

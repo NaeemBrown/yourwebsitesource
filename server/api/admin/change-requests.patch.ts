@@ -46,21 +46,25 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb();
 
-  // Quoting is conditional on the request not already being approved/paid —
-  // otherwise an admin re-quote racing a customer approval could silently
-  // flip a paid request back to `quoted`.
-  const where =
-    body.status === "quoted"
-      ? and(
-          eq(schema.changeRequests.id, body.id),
-          inArray(schema.changeRequests.status, ["open", "quoted", "declined"]),
-        )
-      : eq(schema.changeRequests.id, body.id);
+  // Every transition is conditional on the current status — otherwise an admin
+  // acting on a stale page racing a customer approval could silently flip a
+  // PAID request back to `quoted` (or to `declined`, taking the money with no
+  // work recorded). `done` only ever follows a paid approval.
+  const allowedFrom: Record<string, ("open" | "quoted" | "declined" | "approved")[]> = {
+    quoted: ["open", "quoted", "declined"],
+    declined: ["open", "quoted"],
+    done: ["approved"],
+  };
 
   const [row] = await db
     .update(schema.changeRequests)
     .set(updates)
-    .where(where)
+    .where(
+      and(
+        eq(schema.changeRequests.id, body.id),
+        inArray(schema.changeRequests.status, allowedFrom[body.status] ?? []),
+      ),
+    )
     .returning();
 
   if (!row) {
@@ -72,7 +76,7 @@ export default defineEventHandler(async (event) => {
     if (exists) {
       throw createError({
         statusCode: 409,
-        statusMessage: `Can't quote a request that is already ${exists.status}. Refresh first.`,
+        statusMessage: `Can't set a request that is already ${exists.status} to ${body.status}. Refresh first.`,
       });
     }
     throw createError({ statusCode: 404, statusMessage: "Request not found." });

@@ -123,9 +123,11 @@ const comparison = [
                 <span
                   class="font-display text-[clamp(3rem,4vw,5rem)] font-medium leading-none tracking-[-0.08em]"
                 >
-                  {{ dollars(tier.price) }}
+                  <!-- Non-fixed tiers (Custom Quote) have no set price to show. -->
+                  {{ tier.fixed ? dollars(tier.price) : "Custom" }}
                 </span>
                 <span
+                  v-if="tier.fixed"
                   class="ml-2 font-mono text-[0.5rem] uppercase tracking-[0.18em] text-white/35"
                   >/ {{ tier.period }}</span
                 >
@@ -492,7 +494,7 @@ const comparison = [
             </h3>
             <p class="mt-3 text-sm leading-relaxed text-white/42">
               Your dashboard shows monthly burn and estimated runway. Low
-              balances receive a warning and seven-day grace period.
+              balances receive a warning and ten-day grace period.
             </p>
           </div>
         </div>

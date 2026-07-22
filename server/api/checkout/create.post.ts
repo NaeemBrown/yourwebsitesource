@@ -33,9 +33,11 @@ export default defineEventHandler(async (event) => {
     // Resolve the buyer: prefer the signed-in customer, else the supplied email.
     const identity = await getOptionalCustomer(event);
 
-    // Every paid build order must be tied to an authenticated account so the
-    // brief, invoice, and project are owned by a real customer (launch req §3).
-    if (purpose === "build" && !identity) {
+    // Every purchase must be tied to an authenticated account: builds so the
+    // brief, invoice, and project are owned by a real customer (launch req §3),
+    // and top-ups so an anonymous caller can't mint junk customer rows for
+    // arbitrary emails (the portal always calls this signed in anyway).
+    if (!identity) {
       throw createError({
         statusCode: 401,
         statusMessage: "Please sign in to complete your purchase.",
@@ -292,6 +294,59 @@ export default defineEventHandler(async (event) => {
             .set({ claimedAt: now })
             .where(eq(schema.checkoutBriefs.id, checkoutBrief.id));
         }
+
+        // Wallet-covered builds never reach finalizeBuild, so mirror its
+        // provisioning here: a draft site for recurring charges/"Your sites"
+        // to attach to, a payment activity entry, and the receipt.
+        if (fullyCoveredByWallet) {
+          let provisionedSiteId = siteId;
+          if (!provisionedSiteId) {
+            const [site] = await db
+              .insert(schema.sites)
+              .values({
+                customerId: customer.id,
+                name: label,
+                type: "dynamic",
+                origin: "built",
+                status: "draft",
+                dbHosting: "none",
+              })
+              .returning({ id: schema.sites.id });
+            provisionedSiteId = site?.id ?? null;
+          }
+          if (provisionedSiteId) {
+            await db
+              .update(schema.invoices)
+              .set({ siteId: provisionedSiteId })
+              .where(eq(schema.invoices.id, invoice.id));
+            await db
+              .update(schema.projects)
+              .set({ siteId: provisionedSiteId })
+              .where(eq(schema.projects.invoiceId, invoice.id));
+          }
+          if (project) {
+            await db.insert(schema.projectActivity).values({
+              projectId: project.id,
+              type: "payment",
+              title: "Payment received",
+              details: "Paid in full from wallet credit.",
+            });
+          }
+          if (customer.email) {
+            const receipt = receiptEmail({
+              name: customer.name,
+              description: "Website build",
+              amountCents: usdCents,
+              currency: WALLET_CURRENCY,
+              reference,
+            });
+            void sendEmail({
+              to: customer.email,
+              replyTo: getSupportEmail(),
+              ...receipt,
+            });
+          }
+        }
       }
 
       // Wallet-only build purchase: no external checkout needed.
@@ -321,8 +376,19 @@ export default defineEventHandler(async (event) => {
         siteId,
         usdCents,
         walletApplyCents,
+        zarCents,
         fxRate,
         label,
+        // Fulfillment only honours metadata we signed — anyone holding the
+        // public key can initialise a transaction with arbitrary metadata.
+        sig: signCheckoutMetadata({
+          purpose,
+          customerId: customer.id,
+          reference,
+          usdCents,
+          walletApplyCents,
+          zarCents,
+        }),
       },
     });
 

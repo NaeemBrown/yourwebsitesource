@@ -201,7 +201,11 @@ export default defineNuxtConfig({
     // Auth-gated, transactional, and API routes must never be indexed or appear
     // in the sitemap. `robots: false` adds <meta robots noindex>, the
     // X-Robots-Tag header, a robots.txt Disallow, and sitemap exclusion.
+    // `/x/**` does NOT match the bare `/x` route (radix matching), so the
+    // index pages need their own rules.
+    "/admin": { robots: false },
     "/admin/**": { robots: false },
+    "/account": { robots: false },
     "/account/**": { robots: false },
     "/checkout/**": { robots: false },
     "/api/**": { robots: false },

@@ -69,6 +69,9 @@ const actionDetails = ref("");
 const actionMsg = ref<string | null>(null);
 const deliverableName = ref("");
 const deliverableUrl = ref("");
+const deliverableMsg = ref<string | null>(null);
+const saveError = ref<string | null>(null);
+const saveErrorId = ref("");
 
 // Project lifecycle stages with human-friendly labels for the dropdown.
 const statusOptions: Array<{ value: string; label: string }> = [
@@ -108,6 +111,8 @@ async function load() {
 
 async function save(project: Project) {
   busy.value = project.id;
+  saveError.value = null;
+  saveErrorId.value = "";
   try {
     await adminFetch("/api/admin/projects", {
       method: "PATCH",
@@ -120,6 +125,16 @@ async function save(project: Project) {
       },
     });
     await load();
+  } catch (e) {
+    const err = e as {
+      data?: { statusMessage?: string };
+      statusMessage?: string;
+    };
+    saveError.value =
+      err?.data?.statusMessage ||
+      err?.statusMessage ||
+      "Could not save the update.";
+    saveErrorId.value = project.id;
   } finally {
     busy.value = "";
   }
@@ -169,6 +184,7 @@ async function addDeliverable() {
     !deliverableUrl.value
   )
     return;
+  deliverableMsg.value = null;
   busy.value = selected.value.id;
   try {
     await adminFetch("/api/admin/project-files", {
@@ -181,6 +197,21 @@ async function addDeliverable() {
     });
     deliverableName.value = "";
     deliverableUrl.value = "";
+    deliverableMsg.value =
+      "Deliverable added — the customer will see it in their portal.";
+    await load();
+    selected.value =
+      projects.value.find((project) => project.id === selected.value?.id) ??
+      null;
+  } catch (e) {
+    const err = e as {
+      data?: { statusMessage?: string };
+      statusMessage?: string;
+    };
+    deliverableMsg.value =
+      err?.data?.statusMessage ||
+      err?.statusMessage ||
+      "Could not add deliverable.";
   } finally {
     busy.value = "";
   }
@@ -330,6 +361,12 @@ onMounted(load);
               Save update
             </button>
           </div>
+          <p
+            v-if="saveError && saveErrorId === project.id"
+            class="mt-2 text-right text-[11px] text-rose-400"
+          >
+            {{ saveError }}
+          </p>
         </article>
       </div>
 
@@ -392,6 +429,17 @@ onMounted(load);
           >
             Add deliverable
           </button>
+          <p
+            v-if="deliverableMsg"
+            class="mt-2 text-[11px]"
+            :class="
+              deliverableMsg.startsWith('Deliverable added')
+                ? 'text-emerald-400'
+                : 'text-rose-400'
+            "
+          >
+            {{ deliverableMsg }}
+          </p>
         </div>
       </aside>
     </div>

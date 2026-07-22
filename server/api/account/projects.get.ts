@@ -53,6 +53,17 @@ export default defineEventHandler(async (event) => {
         .orderBy(asc(schema.recurringCharges.nextChargeAt)),
     ]);
 
+  const activeRecurring = recurring.filter(
+    (charge) => charge.status === "active",
+  );
+  // Domains billed via an active recurring charge are already in that list —
+  // adding a domain-derived entry too would double-count the renewal.
+  const recurringDomainIds = new Set(
+    activeRecurring
+      .filter((charge) => charge.kind === "domain" && charge.domainId)
+      .map((charge) => charge.domainId),
+  );
+
   return {
     projects: projectRows.map((project) => ({
       ...project,
@@ -62,17 +73,20 @@ export default defineEventHandler(async (event) => {
     })),
     requests,
     upcomingCosts: [
-      ...recurring
-        .filter((charge) => charge.status === "active")
-        .map((charge) => ({
-          id: charge.id,
-          label: charge.label,
-          amountCents: charge.amountCents,
-          dueAt: charge.nextChargeAt,
-          kind: charge.kind,
-        })),
+      ...activeRecurring.map((charge) => ({
+        id: charge.id,
+        label: charge.label,
+        amountCents: charge.amountCents,
+        dueAt: charge.nextChargeAt,
+        kind: charge.kind,
+      })),
       ...domains
-        .filter((domain) => domain.expiresAt && domain.annualCostCents)
+        .filter(
+          (domain) =>
+            domain.expiresAt &&
+            domain.annualCostCents &&
+            !recurringDomainIds.has(domain.id),
+        )
         .map((domain) => ({
           id: domain.id,
           label: `${domain.fqdn} renewal`,

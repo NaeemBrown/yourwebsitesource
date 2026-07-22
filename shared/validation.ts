@@ -18,6 +18,18 @@ export function isValidEmail(value: string | null | undefined): boolean {
   return EMAIL_RE.test(email);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Guards route/body IDs before they reach a `uuid` column comparison — a
+ * non-UUID string otherwise surfaces as an unhandled Postgres 22P02 cast
+ * error (a 500) instead of a clean 404/422.
+ */
+export function isUuid(value: string | null | undefined): boolean {
+  return UUID_RE.test((value ?? "").trim());
+}
+
 /** Upper bound for stored URLs — long enough for real links, short enough to
  * reject abuse (multi-KB strings) before they reach the database. */
 export const MAX_URL_LENGTH = 2048;

@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { isUuid } from "~~/shared/validation";
 import type { ChangeRequestPayload } from "../../models/account";
 
 /**
@@ -28,10 +29,22 @@ export default defineEventHandler(async (event) => {
       statusMessage: "Please give a short title and a few sentences of detail.",
     });
   }
+  if (title.length > 200) {
+    throw createError({
+      statusCode: 422,
+      statusMessage: "Please keep the title under 200 characters.",
+    });
+  }
+  if (details.length > 5000) {
+    throw createError({
+      statusCode: 422,
+      statusMessage: "Please keep the details under 5,000 characters.",
+    });
+  }
 
   // A change request must target one of the customer's sites — there's nothing
   // to change without a site we built/host for them.
-  if (!body?.siteId) {
+  if (!body?.siteId || !isUuid(body.siteId)) {
     throw createError({
       statusCode: 422,
       statusMessage: "Please choose which site this change is for.",

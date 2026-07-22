@@ -80,7 +80,9 @@ export async function sendEmail(
     const { data, error } = await resend.emails.send({
       from: input.from || getMailFrom(),
       to: input.to,
-      subject: input.subject,
+      // Subjects interpolate user-supplied names/titles; strip CR/LF so a
+      // crafted value can never smuggle extra headers past the provider.
+      subject: input.subject.replace(/[\r\n]+/g, " ").trim(),
       html: input.html,
       text: input.text,
       replyTo: input.replyTo,

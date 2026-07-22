@@ -145,6 +145,11 @@ function validateStep(step = currentStep.value) {
     if (form.pages.trim().length < MIN_PAGES_LENGTH)
       errors.pages = "List the pages or sections you expect.";
     if (!form.features.length) errors.features = "Choose at least one feature.";
+    // The server rejects a combined message over 5000 chars — catch it here so
+    // the user sees which fields to trim instead of an unhighlighted failure.
+    if (buildMessage().length > 5000)
+      errors.extraDetails =
+        "Your brief is too long — please trim it to roughly 5,000 characters in total.";
   }
 
   fieldErrors.value = errors;
@@ -228,6 +233,22 @@ async function submit() {
     if (data?.errors) {
       fieldErrors.value = data.errors;
       serverMessage.value = "Please fix the highlighted fields.";
+      // Server errors can point at fields on earlier steps (name/email/company
+      // live on step 0, budget on step 2; `message` maps to the step-4
+      // textareas) — surface them where they render, and jump to the earliest
+      // step that shows one, or the user stares at nothing highlighted.
+      if (data.errors.message) {
+        fieldErrors.value = {
+          ...fieldErrors.value,
+          extraDetails: data.errors.message,
+        };
+      }
+      const errored = Object.keys(data.errors);
+      if (errored.some((k) => ["name", "email", "company"].includes(k))) {
+        currentStep.value = 0;
+      } else if (errored.includes("budget")) {
+        currentStep.value = 2;
+      }
     } else {
       serverMessage.value = "Something went wrong. Please email us directly.";
     }
@@ -369,9 +390,13 @@ function reset() {
                 <input
                   v-model="form.company"
                   type="text"
+                  maxlength="200"
                   placeholder="Acme Inc."
                   :class="inputClass"
                 />
+                <p v-if="fieldErrors.company" class="mt-1 text-xs text-white">
+                  {{ fieldErrors.company }}
+                </p>
               </div>
               <div>
                 <label class="mb-1.5 block text-xs font-medium text-slate-300">
@@ -584,6 +609,12 @@ function reset() {
                   placeholder="Anything else we should know?"
                   :class="inputClass"
                 />
+                <p
+                  v-if="fieldErrors.extraDetails"
+                  class="mt-1 text-xs text-white"
+                >
+                  {{ fieldErrors.extraDetails }}
+                </p>
               </div>
             </div>
           </template>

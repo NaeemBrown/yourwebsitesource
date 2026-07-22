@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 const STATUSES = [
   "awaiting_payment",
+  "payment_received",
   "brief_received",
   "design",
   "build",
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event) => {
     });
   }
   // Reject non-numeric progress before it becomes NaN in the DB. Absent is fine
-  // (defaults to 0); a present-but-wrong type is a client bug worth surfacing.
+  // (left unchanged); a present-but-wrong type is a client bug worth surfacing.
   if (body.progress !== undefined && typeof body.progress !== "number") {
     throw createError({
       statusCode: 422,
@@ -38,22 +39,31 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const progress = Math.max(0, Math.min(100, Math.round(body.progress ?? 0)));
   const status = body.status;
   const latestUpdate = body.latestUpdate?.trim() || null;
+
+  // PATCH semantics: only touch fields present in the body — an omitted field
+  // must keep its stored value, not be reset to a default.
+  const changes: Partial<typeof schema.projects.$inferInsert> = {
+    status,
+    updatedAt: new Date(),
+  };
+  if (body.progress !== undefined) {
+    changes.progress = Math.max(0, Math.min(100, Math.round(body.progress)));
+  }
+  if (body.estimatedLaunchAt !== undefined) {
+    changes.estimatedLaunchAt = body.estimatedLaunchAt || null;
+  }
+  if (body.latestUpdate !== undefined) {
+    changes.latestUpdate = latestUpdate;
+  }
 
   // Status change and its activity record are written together so the audit
   // timeline can never miss a transition (or record one that didn't commit).
   const project = await useDb().transaction(async (tx) => {
     const [updated] = await tx
       .update(schema.projects)
-      .set({
-        status,
-        progress,
-        estimatedLaunchAt: body.estimatedLaunchAt || null,
-        latestUpdate,
-        updatedAt: new Date(),
-      })
+      .set(changes)
       .where(eq(schema.projects.id, body.id!))
       .returning();
     if (!updated) {

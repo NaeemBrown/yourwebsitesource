@@ -398,7 +398,9 @@ onMounted(loadCustomers);
               <tr v-for="r in detail.recurring" :key="r.id">
                 <td class="py-2 text-slate-200">{{ r.label }}</td>
                 <td class="py-2 text-slate-300">
-                  {{ formatUsdCents(r.amountCents) }}/mo
+                  {{ formatUsdCents(r.amountCents) }}/{{
+                    r.interval === "year" ? "yr" : "mo"
+                  }}
                 </td>
                 <td class="py-2">
                   <span

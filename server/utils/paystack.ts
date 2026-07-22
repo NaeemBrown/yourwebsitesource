@@ -24,19 +24,6 @@ function getSecretKey(): string {
   return key;
 }
 
-/**
- * Resolve the Paystack Plan code (`PLN_...`) for a recurring billing key from
- * the environment. You create the Plans in the Paystack dashboard (plan §3.1
- * step 8) and expose each code via an env var, e.g.:
- *   PAYSTACK_PLAN_HOSTING_STATIC=PLN_xxx
- *   PAYSTACK_PLAN_CARE_BASIC=PLN_yyy
- * The env var name is `PAYSTACK_PLAN_<KEY UPPERCASED>`.
- */
-export function getPlanCode(billingKey: string): string | undefined {
-  const envName = `PAYSTACK_PLAN_${billingKey.toUpperCase()}`;
-  return process.env[envName] || undefined;
-}
-
 interface PaystackApiResponse<T> {
   status: boolean;
   message: string;
@@ -123,53 +110,6 @@ export function verifyTransaction(
 ): Promise<VerifyTransactionResult> {
   return paystackFetch<VerifyTransactionResult>(
     `/transaction/verify/${encodeURIComponent(reference)}`,
-  );
-}
-
-/* --------------------------- subscriptions -------------------------- */
-
-export interface SubscriptionManageLinkResult {
-  link: string;
-}
-
-/**
- * GET /subscription/:code/manage/link — a secure Paystack-hosted page where the
- * customer can update their card. Replaces Stripe's hosted portal (plan §5.4).
- */
-export function getSubscriptionManageLink(
-  subscriptionCode: string,
-): Promise<SubscriptionManageLinkResult> {
-  return paystackFetch<SubscriptionManageLinkResult>(
-    `/subscription/${encodeURIComponent(subscriptionCode)}/manage/link`,
-  );
-}
-
-/**
- * POST /subscription/disable — cancel a subscription. Requires the subscription
- * code and the current email token (fetched from the subscription record).
- */
-export function disableSubscription(input: {
-  code: string;
-  token: string;
-}): Promise<unknown> {
-  return paystackFetch("/subscription/disable", {
-    method: "POST",
-    body: { code: input.code, token: input.token },
-  });
-}
-
-export interface PaystackSubscriptionRecord {
-  subscription_code: string;
-  email_token: string;
-  status: string;
-}
-
-/** GET /subscription/:idOrCode — fetch a subscription (we need its email_token to cancel). */
-export function fetchSubscription(
-  idOrCode: string,
-): Promise<PaystackSubscriptionRecord> {
-  return paystackFetch<PaystackSubscriptionRecord>(
-    `/subscription/${encodeURIComponent(idOrCode)}`,
   );
 }
 

@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { isUuid } from "../../../shared/validation";
 
 /**
  * PATCH /api/account/change-request — customer approves a quoted change request
@@ -20,44 +21,61 @@ export default defineEventHandler(async (event) => {
   );
   const id = body?.id?.trim();
   const action = body?.action ?? "approve";
-  if (!id) {
+  if (!id || !isUuid(id)) {
     throw createError({
       statusCode: 422,
-      statusMessage: "An `id` is required.",
+      statusMessage: "A valid `id` is required.",
+    });
+  }
+  // Never fall through to the money-moving approve path on unrecognised
+  // input — a typo'd action must not debit the wallet.
+  if (action !== "approve" && action !== "cancel") {
+    throw createError({
+      statusCode: 422,
+      statusMessage: "`action` must be \"approve\" or \"cancel\".",
     });
   }
 
   const db = useDb();
 
   // Cancel: a customer can withdraw a request they raised (e.g. by mistake)
-  // while it's still open or quoted — never after it's approved/paid.
+  // while it's still open or quoted — never after it's approved/paid. The
+  // status guard lives in the UPDATE itself so a cancel racing a concurrent
+  // approval (second tab) can't overwrite a paid request.
   if (action === "cancel") {
-    const [cr] = await db
-      .select()
-      .from(schema.changeRequests)
+    const [canceled] = await db
+      .update(schema.changeRequests)
+      .set({ status: "canceled" })
       .where(
         and(
           eq(schema.changeRequests.id, id),
           eq(schema.changeRequests.customerId, customer.id),
+          inArray(schema.changeRequests.status, ["open", "quoted"]),
         ),
       )
-      .limit(1);
-    if (!cr) {
+      .returning({ id: schema.changeRequests.id });
+    if (!canceled) {
+      const [exists] = await db
+        .select({ status: schema.changeRequests.status })
+        .from(schema.changeRequests)
+        .where(
+          and(
+            eq(schema.changeRequests.id, id),
+            eq(schema.changeRequests.customerId, customer.id),
+          ),
+        )
+        .limit(1);
+      if (exists) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: "This request can no longer be cancelled.",
+        });
+      }
       throw createError({
         statusCode: 404,
         statusMessage: "Request not found.",
       });
     }
-    if (cr.status !== "open" && cr.status !== "quoted") {
-      throw createError({
-        statusCode: 409,
-        statusMessage: "This request can no longer be cancelled.",
-      });
-    }
-    await db
-      .update(schema.changeRequests)
-      .set({ status: "canceled" })
-      .where(eq(schema.changeRequests.id, cr.id));
     return { ok: true, status: "canceled" };
   }
 

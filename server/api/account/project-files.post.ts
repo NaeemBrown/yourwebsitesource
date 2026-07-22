@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { isValidHttpUrl } from "~~/shared/validation";
+import { isUuid, isValidHttpUrl } from "~~/shared/validation";
 
 interface Payload {
   projectId?: string;
@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
     if (
       !customer ||
       !body?.projectId ||
+      !isUuid(body.projectId) ||
       name.length < 2 ||
       !isValidHttpUrl(url)
     ) {

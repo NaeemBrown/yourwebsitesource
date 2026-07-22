@@ -158,27 +158,6 @@ export function receiptEmail(input: {
   return { subject, html, text };
 }
 
-/** Dunning email when a recurring charge fails. */
-export function paymentFailedEmail(input: {
-  name?: string | null;
-  manageUrl?: string | null;
-}): EmailContent {
-  const first = (input.name ?? "").split(" ")[0] || "there";
-  const subject = `Action needed: your ${BRAND} payment didn't go through`;
-  const cta = input.manageUrl
-    ? `<p style="margin:18px 0;">${button(input.manageUrl, "Update payment method")}</p>`
-    : `<p style="margin:18px 0;">Please reply to this email and we'll send you a secure link to update your card.</p>`;
-  const html = layout(`
-    <h1 style="margin:0 0 14px 0;font-size:20px;color:${TEXT};">We couldn't process your payment</h1>
-    <p style="margin:0 0 14px 0;">Hi ${esc(first)}, your most recent subscription charge didn't go through. This usually means the card expired or had insufficient funds.</p>
-    <p style="margin:0 0 6px 0;">To avoid any interruption to your site, please update your payment method:</p>
-    ${cta}
-    <p style="margin:0;color:${MUTED};">If you've already fixed this, you can ignore this message.</p>
-  `);
-  const text = `We couldn't process your payment\n\nHi ${first}, your most recent subscription charge didn't go through.\n\n${input.manageUrl ? `Update your payment method: ${input.manageUrl}` : "Reply to this email and we'll send you a secure link to update your card."}`;
-  return { subject, html, text };
-}
-
 /* ------------------------------ wallet ----------------------------- */
 
 /** Receipt sent after a successful wallet top-up. */

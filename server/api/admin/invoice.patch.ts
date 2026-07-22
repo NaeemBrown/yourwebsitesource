@@ -36,6 +36,14 @@ export default defineEventHandler(async (event) => {
         statusMessage: "Invoice is already paid.",
       });
     }
+    // A refunded invoice must stay refunded — flipping it back to paid would
+    // re-arm the refund button (double-refund risk) and double-count revenue.
+    if (invoice.status === "refunded") {
+      throw createError({
+        statusCode: 409,
+        statusMessage: "A refunded invoice can't be marked paid again.",
+      });
+    }
     await db
       .update(schema.invoices)
       .set({ status: "paid", paidAt: new Date() })
@@ -79,6 +87,15 @@ export default defineEventHandler(async (event) => {
     } else if (invoice.providerInvoiceId) {
       // Paystack refund (full amount of the original transaction).
       await refundTransaction({ reference: invoice.providerInvoiceId });
+    } else {
+      // No wallet provider and no Paystack reference (e.g. EFT marked paid
+      // manually) — there is no channel to move money back through, so
+      // refuse rather than flag "refunded" while the customer got nothing.
+      throw createError({
+        statusCode: 409,
+        statusMessage:
+          "This invoice has no refundable payment on record. Credit the wallet manually instead.",
+      });
     }
     await db
       .update(schema.invoices)

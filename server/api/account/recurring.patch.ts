@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { isUuid } from "~~/shared/validation";
 
 /**
  * PATCH /api/account/recurring — a signed-in customer cancels one of their OWN
@@ -15,8 +16,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody<{ id?: string }>(event);
-  if (!body?.id) {
-    throw createError({ statusCode: 422, statusMessage: "`id` is required." });
+  if (!body?.id || !isUuid(body.id)) {
+    throw createError({
+      statusCode: 422,
+      statusMessage: "A valid `id` is required.",
+    });
   }
 
   const db = useDb();

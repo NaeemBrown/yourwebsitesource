@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { isUuid } from "~~/shared/validation";
 
 interface Payload {
   projectId?: string;
@@ -10,8 +11,11 @@ export default defineEventHandler(async (event) => {
   const identity = await requireCustomer(event);
   const customer = await resolveCustomer(identity);
   const body = await readBody<Payload>(event);
-  if (!customer || !body?.projectId) {
+  if (!customer || !body?.projectId || !isUuid(body.projectId)) {
     throw createError({ statusCode: 422, statusMessage: "Project required." });
+  }
+  if (body.actionId && !isUuid(body.actionId)) {
+    throw createError({ statusCode: 422, statusMessage: "Invalid action." });
   }
 
   const db = useDb();
@@ -41,6 +45,8 @@ export default defineEventHandler(async (event) => {
     // Mark the action complete and log the activity atomically so a completed
     // action always has its matching timeline entry.
     await db.transaction(async (tx) => {
+      // Only transition open actions — a repeat call must not log a duplicate
+      // "Completed:" activity entry for an already-completed action.
       const [action] = await tx
         .update(schema.projectActions)
         .set({ status: "completed", completedAt: new Date() })
@@ -48,6 +54,7 @@ export default defineEventHandler(async (event) => {
           and(
             eq(schema.projectActions.id, actionId),
             eq(schema.projectActions.projectId, project.id),
+            eq(schema.projectActions.status, "open"),
           ),
         )
         .returning();

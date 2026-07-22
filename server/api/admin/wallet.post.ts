@@ -1,3 +1,4 @@
+import { MAX_RECURRING_MONTHLY_USD_CENTS } from "../../../shared/billing";
 import type { WalletAdjustPayload } from "../../models/admin";
 
 const CREDIT_TYPES = new Set(["topup", "refund", "adjustment"]);
@@ -37,6 +38,16 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 422,
       statusMessage: "A positive amount is required.",
+    });
+  }
+  // Same sanity cap as recurring charges — a fat-fingered amount would
+  // otherwise silently swing a wallet by an absurd sum.
+  if (amount > MAX_RECURRING_MONTHLY_USD_CENTS) {
+    throw createError({
+      statusCode: 422,
+      statusMessage: `Amount must be at most $${(
+        MAX_RECURRING_MONTHLY_USD_CENTS / 100
+      ).toLocaleString("en-US")}.`,
     });
   }
   const allowed = direction === "credit" ? CREDIT_TYPES : DEBIT_TYPES;

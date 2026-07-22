@@ -64,6 +64,20 @@ export default defineEventHandler(async (event) => {
         statusMessage: "Provide a planKey, or kind + label + amountUsdCents.",
       });
     }
+    // Validate before the insert so a bad kind is a clean 422 rather than a
+    // raw Postgres enum error.
+    if (!["hosting", "database"].includes(body.kind)) {
+      // Domain renewals must be created via /admin/domains so they carry a
+      // domainId — an unlinked one can't advance the domain record and shows
+      // as a duplicate row in the customer's upcoming costs.
+      throw createError({
+        statusCode: 422,
+        statusMessage:
+          body.kind === "domain"
+            ? "Create domain renewals from /admin/domains (set auto-renew + annual cost) so they're linked to the domain."
+            : "`kind` must be hosting or database.",
+      });
+    }
     kind = body.kind;
     label = body.label.trim();
     amountCents = Math.round(body.amountUsdCents);
@@ -151,6 +165,9 @@ export default defineEventHandler(async (event) => {
       planKey,
       label,
       amountCents,
+      // Domain renewals bill yearly — a monthly interval would debit the
+      // annual fee every month.
+      interval: kind === "domain" ? "year" : "month",
       nextChargeAt,
     })
     .returning();

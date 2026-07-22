@@ -21,6 +21,12 @@ export function useDb() {
   }
 
   _pool = new Pool({ connectionString });
+  // Without a listener, an idle client dropping (Postgres restart, network
+  // blip) emits an unhandled 'error' event and crashes the whole process.
+  // The pool discards the broken client and mints a new one on next use.
+  _pool.on("error", (err) => {
+    console.error("[db] idle client error (recovered):", err.message);
+  });
   _db = drizzle(_pool, { schema });
   return _db;
 }

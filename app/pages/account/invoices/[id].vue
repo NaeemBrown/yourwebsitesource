@@ -136,8 +136,10 @@ useSeoMeta({ title: "Invoice — TheWebsiteForge", robots: "noindex" });
         ← Back to account
       </NuxtLink>
 
+      <!-- `user && pending`: a signed-out visitor never runs load(), so pending
+           alone would show "Loading…" forever instead of the sign-in prompt. -->
       <div
-        v-if="!ready || pending"
+        v-if="!ready || (user && pending)"
         class="glass mt-6 rounded-2xl p-10 text-center text-slate-400"
       >
         Loading…

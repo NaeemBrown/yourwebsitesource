@@ -115,6 +115,17 @@ export default defineEventHandler(async (event) => {
 
     const shouldBill = autoRenew && !!annualCostCents && annualCostCents > 0;
 
+    // Only an explicit re-enable may reactivate a non-active charge — an
+    // unrelated edit (attach a site, fix the registrar) must not resurrect
+    // one the admin deliberately canceled/paused, and a dunning-paused charge
+    // must restart with a clean grace state or the next failed debit would
+    // skip the warning and suspend immediately. Re-adding a removed cost is
+    // the same intent as re-enabling auto-renew (clearing the cost cancels
+    // the charge, so re-adding it must be able to revive it).
+    const reEnabled =
+      (body.autoRenew === true && !domain.autoRenew) ||
+      (body.annualCostUsdCents != null && domain.annualCostCents == null);
+
     if (shouldBill && expiresAt) {
       if (existing) {
         await tx
@@ -123,8 +134,31 @@ export default defineEventHandler(async (event) => {
             amountCents: annualCostCents!,
             label: `${domain.fqdn} renewal`,
             interval: "year",
-            status: "active",
-            nextChargeAt: expiresAt,
+            // Re-anchor billing only when the admin actually set a new expiry
+            // (post-registrar-renewal) or re-enabled auto-renew. The billing
+            // task deliberately leaves `expiresAt` in the past after debiting
+            // (the digest nags until the manual renewal), so re-anchoring on an
+            // unrelated edit would rewind an already-billed charge and debit
+            // the year twice. On a re-enable WITHOUT a new expiry, keep the
+            // later of the two anchors for the same reason — the stale expiry
+            // may describe a year the charge already collected.
+            ...(body.expiresAt !== undefined
+              ? { nextChargeAt: expiresAt }
+              : reEnabled
+                ? {
+                    nextChargeAt:
+                      expiresAt.getTime() > existing.nextChargeAt.getTime()
+                        ? expiresAt
+                        : existing.nextChargeAt,
+                  }
+                : {}),
+            ...(existing.status !== "active" && reEnabled
+              ? {
+                  status: "active" as const,
+                  lowBalanceNotifiedAt: null,
+                  failureCount: 0,
+                }
+              : {}),
           })
           .where(eq(schema.recurringCharges.id, existing.id));
       } else {

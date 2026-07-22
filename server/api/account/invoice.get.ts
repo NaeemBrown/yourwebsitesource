@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { isUuid } from "~~/shared/validation";
 
 /** Human description for an invoice type, used on the detail view + PDF. */
 export function invoiceDescription(type: string): string {
@@ -37,6 +38,9 @@ export default defineEventHandler(async (event) => {
       statusCode: 422,
       statusMessage: "An `id` is required.",
     });
+  }
+  if (!isUuid(id)) {
+    throw createError({ statusCode: 404, statusMessage: "Invoice not found." });
   }
 
   const db = useDb();

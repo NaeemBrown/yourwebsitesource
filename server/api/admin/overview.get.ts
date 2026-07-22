@@ -60,10 +60,18 @@ export default defineEventHandler(async (event) => {
     salesByType[i.type] = (salesByType[i.type] ?? 0) + i.amountCents;
   }
 
+  // Between today and +30 days — already-expired domains aren't "expiring soon"
+  // (matches the domains page's 0 ≤ days ≤ 30 window). `expiresAt` is a
+  // date-only column (UTC midnight), so compare from start of today or a
+  // domain expiring TODAY drops out of the most urgent bucket.
+  const startOfToday = new Date(now);
+  startOfToday.setUTCHours(0, 0, 0, 0);
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const domainsExpiringSoon = domainRows.filter(
-    (d) => d.expiresAt && new Date(d.expiresAt) <= in30Days,
-  ).length;
+  const domainsExpiringSoon = domainRows.filter((d) => {
+    if (!d.expiresAt) return false;
+    const expires = new Date(d.expiresAt);
+    return expires >= startOfToday && expires <= in30Days;
+  }).length;
 
   return {
     mrrCents,

@@ -114,14 +114,14 @@ export default defineEventHandler(async (event): Promise<CheckoutResponse> => {
     }
   }
 
-  // Reissue a fresh reference and repoint the invoice to it. Paystack rejects
-  // re-initialising a reference it has already seen, so a new one is the robust
-  // path; fulfillment matches on providerInvoiceId, which we keep in sync.
+  // Reissue a fresh reference. Paystack rejects re-initialising a reference it
+  // has already seen, so a new one is the robust path; fulfillment matches on
+  // providerInvoiceId, which is repointed only AFTER Paystack accepts the init
+  // so a failed init can't leave the invoice pointing at a reference Paystack
+  // has never seen. (Residual: a payment completed on the OLD authorization
+  // page after the repoint resolves to no_invoice and needs a manual refund —
+  // the admin sees it in the Paystack dashboard as an unmatched charge.)
   const reference = generateReference("twf_build");
-  await db
-    .update(schema.invoices)
-    .set({ providerInvoiceId: reference, provider: "paystack" })
-    .where(eq(schema.invoices.id, invoice.id));
 
   const usdCents = invoice.amountCents;
   const zarCents = usdCentsToZarCents(usdCents);
@@ -151,10 +151,41 @@ export default defineEventHandler(async (event): Promise<CheckoutResponse> => {
         // Open build invoices were never wallet-debited, so resume charges the
         // full amount via Paystack.
         walletApplyCents: 0,
+        zarCents,
         fxRate,
         label,
+        sig: signCheckoutMetadata({
+          purpose: "build",
+          customerId: customer.id,
+          reference,
+          usdCents,
+          walletApplyCents: 0,
+          zarCents,
+        }),
       },
     });
+
+    // Init accepted — repoint the invoice, guarded against a concurrent
+    // fulfillment having marked it paid while we were talking to Paystack.
+    const repointed = await db
+      .update(schema.invoices)
+      .set({ providerInvoiceId: reference, provider: "paystack" })
+      .where(
+        and(
+          eq(schema.invoices.id, invoice.id),
+          eq(schema.invoices.status, "open"),
+        ),
+      )
+      .returning({ id: schema.invoices.id });
+    if (repointed.length === 0) {
+      // The invoice left "open" while we talked to Paystack — either a
+      // concurrent payment landed or an admin voided it.
+      throw createError({
+        statusCode: 409,
+        statusMessage:
+          "This invoice can no longer be paid online. Refresh your account for its current status.",
+      });
+    }
 
     return {
       reference: result.reference,
