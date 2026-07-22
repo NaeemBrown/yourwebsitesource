@@ -43,6 +43,7 @@ const adjBusy = ref(false);
 
 // recurring form
 const recPlanKey = ref("");
+const recFirstFree = ref(false);
 const recBusy = ref(false);
 
 async function loadCustomers() {
@@ -131,9 +132,14 @@ async function addRecurring() {
   try {
     await adminFetch("/api/admin/recurring", {
       method: "POST",
-      body: { customerId: selected.value.id, planKey: recPlanKey.value },
+      body: {
+        customerId: selected.value.id,
+        planKey: recPlanKey.value,
+        firstMonthFree: recFirstFree.value,
+      },
     });
     recPlanKey.value = "";
+    recFirstFree.value = false;
     await openManage(selected.value);
   } catch (e) {
     panelError.value = errMsg(e, "Could not add service.");
@@ -373,6 +379,23 @@ onMounted(loadCustomers);
                 {{ s.label }} — {{ formatUsdCents(s.amountUsdCents) }}/mo
               </option>
             </select>
+            <label
+              class="mt-3 flex items-center gap-2 text-sm text-slate-300"
+            >
+              <input
+                v-model="recFirstFree"
+                type="checkbox"
+                class="h-4 w-4 rounded border-white/20 bg-black/30 accent-white"
+              />
+              First month free
+            </label>
+            <p class="mt-1 text-xs text-slate-500">
+              {{
+                recFirstFree
+                  ? "No charge today — billing starts one month from now."
+                  : "The first month is debited from the wallet immediately."
+              }}
+            </p>
             <button
               type="button"
               :disabled="recBusy || !recPlanKey"

@@ -70,16 +70,17 @@ const websiteTypes: WebsiteType[] = [
 
 const activeCategory = ref<ProjectCategory>("SaaS");
 
+// both arrays are non-empty compile-time constants, so index 0 always exists
 const activeType = computed(
   () =>
     websiteTypes.find((type) => type.category === activeCategory.value) ??
-    websiteTypes[0],
+    websiteTypes[0]!,
 );
 
 const activeExample = computed(
   () =>
     projects.find((project) => project.category === activeCategory.value) ??
-    projects[0],
+    projects[0]!,
 );
 
 const categoryCounts = computed(() =>

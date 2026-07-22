@@ -250,7 +250,7 @@ export default defineNuxtPlugin((nuxtApp) => {
       const raw = (el.textContent ?? "").trim();
       const m = raw.match(/^(\D*?)([\d.,]+)(.*)$/s);
       if (!m) return;
-      const [, prefix, numStr, suffix] = m;
+      const [, prefix, numStr = "", suffix] = m;
       const hasComma = numStr.includes(",");
       const decimals = (numStr.split(".")[1] ?? "").length;
       const target = parseFloat(numStr.replace(/,/g, ""));
@@ -579,9 +579,9 @@ export default defineNuxtPlugin((nuxtApp) => {
   // Recompute trigger positions once the first page has settled (fonts, images,
   // Lenis) so above-the-fold animations measure correctly on initial load.
   if (import.meta.client) {
-    nuxtApp.hook("app:mounted", () =>
-      requestAnimationFrame(() => ScrollTrigger.refresh()),
-    );
+    nuxtApp.hook("app:mounted", () => {
+      requestAnimationFrame(() => ScrollTrigger.refresh());
+    });
     window.addEventListener("load", () => ScrollTrigger.refresh(), {
       once: true,
     });

@@ -39,8 +39,11 @@ export interface RecurringPayload {
   kind?: RecurringKind;
   label?: string;
   amountUsdCents?: number;
-  /** ISO date for the first charge; defaults to now (charges on next run). */
+  /** ISO date for the first charge; overrides the firstMonthFree logic. */
   nextChargeAt?: string;
+  /** When no explicit nextChargeAt: true = first interval free (billing starts
+   * one interval out); false/omitted = debit the wallet immediately. */
+  firstMonthFree?: boolean;
 }
 
 /** Recurring-charge lifecycle states (single source of truth for runtime + types). */

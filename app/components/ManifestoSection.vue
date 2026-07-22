@@ -51,14 +51,16 @@ onMounted(() => {
 
   gsap.registerPlugin(ScrollTrigger);
   context = gsap.context(() => {
+    // gsap.quickTo's types only accept numbers, but CSS-var targets need the
+    // "%" unit string (which gsap handles fine at runtime) — hence the casts.
     const setSpotX = gsap.quickTo(stage.value!, "--spot-x", {
       duration: 0.8,
       ease: "power3",
-    });
+    }) as unknown as (value: string) => void;
     const setSpotY = gsap.quickTo(stage.value!, "--spot-y", {
       duration: 0.8,
       ease: "power3",
-    });
+    }) as unknown as (value: string) => void;
     const onPointerMove = (event: PointerEvent) => {
       const bounds = stage.value!.getBoundingClientRect();
       setSpotX(`${((event.clientX - bounds.left) / bounds.width) * 100}%`);

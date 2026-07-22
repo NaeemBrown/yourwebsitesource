@@ -5,6 +5,8 @@
  * organic. Calm + premium. Cursor tilts it slightly for a touch of life.
  * Normal `.vue` (renders an empty div on SSR; Three.js loaded via dynamic import).
  */
+import type { ShaderMaterialParameters } from "three";
+
 const host = ref<HTMLDivElement | null>(null);
 let cleanup: (() => void) | null = null;
 let disposed = false;
@@ -50,7 +52,11 @@ onMounted(async () => {
 
   const material = new THREE.ShaderMaterial({
     uniforms,
-    extensions: { derivatives: true },
+    // 'derivatives' was dropped from three's extensions typings (WebGL2 always
+    // has it); keep the runtime value as-is and just satisfy the type.
+    extensions: {
+      derivatives: true,
+    } as unknown as ShaderMaterialParameters["extensions"],
     vertexShader: /* glsl */ `
       varying vec3 vViewPos;
       void main(){
@@ -199,7 +205,7 @@ onMounted(async () => {
 
   const io = new IntersectionObserver(
     ([entry]) => {
-      if (reduced || !started) return;
+      if (reduced || !started || !entry) return;
       if (entry.isIntersecting) play();
       else pause();
     },

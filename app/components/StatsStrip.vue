@@ -17,7 +17,7 @@ let tick: gsap.TickerCallback | null = null;
 function parse(raw: string) {
   const match = raw.trim().match(/^(\D*?)([\d.,]+)(.*)$/s);
   if (!match) return null;
-  const [, prefix, numStr, suffix] = match;
+  const [, prefix, numStr = "", suffix] = match;
   const hasComma = numStr.includes(",");
   const decimals = (numStr.split(".")[1] ?? "").length;
   const target = parseFloat(numStr.replace(/,/g, ""));
@@ -62,7 +62,7 @@ onMounted(() => {
       // The faux-pin position stays live, but the reveal itself is one-way:
       // once a beat has played it locks, so scrolling back up is static.
       let maxP = 0;
-      tick = () => {
+      const onTick = () => {
         const vh = window.innerHeight || 1;
         const max = Math.max(1, shell.offsetHeight - vh);
         const ty = gsap.utils.clamp(0, max, -shell.getBoundingClientRect().top);
@@ -85,8 +85,9 @@ onMounted(() => {
           reveal.style.opacity = appear.toFixed(3);
         }
       };
-      gsap.ticker.add(tick);
-      tick();
+      tick = onTick;
+      gsap.ticker.add(onTick);
+      onTick();
     }
 
     // ── Metrics: develop the grid + count, when it scrolls into view ──

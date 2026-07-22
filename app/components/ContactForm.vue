@@ -106,7 +106,8 @@ const featureOptions = [
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-400/20";
 
-const current = computed(() => steps[currentStep.value]);
+// currentStep is always clamped to [0, steps.length - 1], so the index is safe
+const current = computed(() => steps[currentStep.value]!);
 const progress = computed(() => ((currentStep.value + 1) / steps.length) * 100);
 
 function isEmail(value: string) {

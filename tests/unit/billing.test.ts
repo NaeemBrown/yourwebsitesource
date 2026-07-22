@@ -15,8 +15,15 @@ import {
 describe("build packages", () => {
   it("looks up known packages and returns undefined otherwise", () => {
     expect(getBuildPackage("build_starter")?.amountUsdCents).toBe(24_900);
+    expect(getBuildPackage("build_starter")?.label).toBe("Starter");
     expect(getBuildPackage("nope")).toBeUndefined();
     expect(getBuildPackage("")).toBeUndefined();
+  });
+
+  it("exposes the three build packages at the advertised prices", () => {
+    expect(buildPackages.build_starter?.amountUsdCents).toBe(24_900);
+    expect(buildPackages.build_professional?.amountUsdCents).toBe(39_900);
+    expect(buildPackages.build_business?.amountUsdCents).toBe(69_900);
   });
 
   it("every catalogue entry has a positive integer price", () => {
@@ -25,21 +32,44 @@ describe("build packages", () => {
       expect(pkg.amountUsdCents).toBeGreaterThan(0);
     }
   });
+
+  it("every catalogue entry's key matches its map key", () => {
+    for (const [key, pkg] of Object.entries(buildPackages)) {
+      expect(pkg.key).toBe(key);
+    }
+    for (const [key, svc] of Object.entries(recurringServices)) {
+      expect(svc.key).toBe(key);
+    }
+  });
 });
 
 describe("recurring services", () => {
   it("looks up known services", () => {
     expect(getRecurringService("hosting_static")?.amountUsdCents).toBe(1_500);
+    expect(getRecurringService("hosting_dynamic")?.kind).toBe("hosting");
     expect(getRecurringService("nope")).toBeUndefined();
   });
 
   it("all priced under the monthly cap", () => {
     for (const svc of Object.values(recurringServices)) {
+      expect(Number.isInteger(svc.amountUsdCents)).toBe(true);
       expect(svc.amountUsdCents).toBeGreaterThan(0);
       expect(svc.amountUsdCents).toBeLessThanOrEqual(
         MAX_RECURRING_MONTHLY_USD_CENTS,
       );
     }
+  });
+
+  it("managed database tiers cost 50% more than self-hosted", () => {
+    expect(recurringServices.db_managed_small!.amountUsdCents).toBe(
+      recurringServices.db_self_small!.amountUsdCents * 1.5,
+    );
+    expect(recurringServices.db_managed_medium!.amountUsdCents).toBe(
+      recurringServices.db_self_medium!.amountUsdCents * 1.5,
+    );
+    expect(recurringServices.db_managed_large!.amountUsdCents).toBe(
+      recurringServices.db_self_large!.amountUsdCents * 1.5,
+    );
   });
 });
 
@@ -67,6 +97,10 @@ describe("formatUsdCents", () => {
   it("keeps cents for fractional dollars", () => {
     expect(formatUsdCents(3_750)).toBe("$37.50");
     expect(formatUsdCents(149_999)).toBe("$1,499.99");
+  });
+
+  it("groups thousands", () => {
+    expect(formatUsdCents(1_234_500)).toBe("$12,345");
   });
 });
 

@@ -96,9 +96,15 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // Without an explicit nextChargeAt, the admin chooses: first month free
+  // (billing starts one interval out, nothing debited today) or charge the
+  // wallet right now for the first interval. Either way the follow-up charge
+  // lands one interval from today.
+  const now = new Date();
+  const chargeNow = !body.nextChargeAt && body.firstMonthFree !== true;
   const nextChargeAt = body.nextChargeAt
     ? new Date(body.nextChargeAt)
-    : new Date();
+    : addMonthsClamped(now, 1);
   if (Number.isNaN(nextChargeAt.getTime())) {
     throw createError({
       statusCode: 422,
@@ -156,26 +162,75 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const [row] = await db
-    .insert(schema.recurringCharges)
-    .values({
-      customerId: body.customerId,
-      siteId,
-      kind,
-      planKey,
-      label,
-      amountCents,
-      // Domain renewals bill yearly — a monthly interval would debit the
-      // annual fee every month.
-      interval: kind === "domain" ? "year" : "month",
-      nextChargeAt,
-    })
-    .returning();
+  // Create the charge and (unless the first month is free) debit the wallet
+  // for the first interval in the same transaction — a failed debit rolls the
+  // whole thing back so we never leave a charge that looks already-billed.
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(schema.recurringCharges)
+      .values({
+        customerId: body.customerId!,
+        siteId,
+        kind,
+        planKey,
+        label,
+        amountCents,
+        // Domain renewals bill yearly — a monthly interval would debit the
+        // annual fee every month.
+        interval: kind === "domain" ? "year" : "month",
+        nextChargeAt,
+        ...(chargeNow ? { lastChargedAt: now } : {}),
+      })
+      .returning();
+    if (!created) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: "Could not create the recurring charge.",
+      });
+    }
+
+    if (chargeNow) {
+      const debit = await debitWallet({
+        customerId: body.customerId!,
+        type: kind,
+        amountCents,
+        description: `${label} (first month)`,
+        siteId,
+        createdBy: admin.email,
+        tx,
+      });
+      if (!debit.ok) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: `Wallet is short $${((debit.shortfallCents ?? 0) / 100).toFixed(2)} for the first month — credit it first, or tick "First month free".`,
+        });
+      }
+      await tx.insert(schema.invoices).values({
+        customerId: body.customerId!,
+        siteId,
+        recurringChargeId: created.id,
+        type: kind === "database" ? "database" : "hosting",
+        amountCents,
+        currency: "USD",
+        status: "paid",
+        provider: "wallet",
+        paidAt: now,
+      });
+    }
+
+    return created;
+  });
 
   await writeAudit(
     admin.email,
     "recurring.create",
-    `customer:${body.customerId} ${label} ${amountCents}c/mo`,
+    `customer:${body.customerId} ${label} ${amountCents}c/mo${
+      chargeNow
+        ? " (first month charged)"
+        : body.nextChargeAt
+          ? ""
+          : " (first month free)"
+    }`,
   );
 
   return { ok: true, recurringCharge: row };

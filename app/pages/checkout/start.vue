@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { buildPackages, formatUsdCents, estimateZar } from "~~/shared/billing";
+import type { AuthUser } from "~/types/auth";
 
 /**
  * Build checkout intake (WebForgePlan2 §4.6). Collects name/email (prefilled if
@@ -197,12 +198,16 @@ async function submitBrief() {
     // authenticated identity (launch req §3).
     if (!user.value) {
       await signInWithGoogle();
-      if (!user.value) {
+      // signInWithGoogle() populates the store ref, which TS control-flow
+      // analysis can't see — re-read it via a cast to undo the stale `null`
+      // narrowing from the outer check.
+      const signedIn = user.value as AuthUser | null;
+      if (!signedIn) {
         briefError.value = "Please sign in to continue to payment.";
         return;
       }
-      name.value = user.value.displayName ?? name.value;
-      email.value = user.value.email ?? email.value;
+      name.value = signedIn.displayName ?? name.value;
+      email.value = signedIn.email ?? email.value;
       await refreshWallet(true);
     }
 

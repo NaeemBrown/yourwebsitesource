@@ -1,4 +1,13 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+// Pull in @nuxtjs/robots' generated `NitroRouteConfig` augmentation (the
+// `robots` key in routeRules below). Nuxt 4 type-checks nuxt.config.ts in the
+// isolated "node" tsconfig project, which doesn't include .nuxt/types/, so the
+// module's augmentation isn't picked up without this reference. (`nuxt
+// typecheck` runs prepare first, so the generated file always exists.) An
+// `import` of the generated .d.ts would be executed by jiti at runtime; the
+// ambient reference is type-only and safe, hence the lint exemption.
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="./.nuxt/types/nuxt-robots-nitro.d.ts" />
 import tailwindcss from "@tailwindcss/vite";
 import { buildContentSecurityPolicy } from "./shared/csp";
 
