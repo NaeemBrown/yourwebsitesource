@@ -14,16 +14,7 @@ const style = computed(() => ({
     :style="style"
   >
     <!-- sheen -->
-    <div
-      class="absolute inset-0 opacity-60"
-      style="
-        background: radial-gradient(
-          120% 80% at 20% 0%,
-          rgba(255, 255, 255, 0.35),
-          transparent 55%
-        );
-      "
-    />
+    <div class="cover-sheen absolute inset-0 opacity-60" />
 
     <!-- faux browser window -->
     <div
@@ -61,3 +52,16 @@ const style = computed(() => ({
     </span>
   </div>
 </template>
+
+<style scoped>
+/* In CSS (not an inline style attribute): prettier reflows long inline styles
+   across lines, and the reformatted whitespace triggers SSR hydration
+   style-mismatch warnings. */
+.cover-sheen {
+  background: radial-gradient(
+    120% 80% at 20% 0%,
+    rgba(255, 255, 255, 0.35),
+    transparent 55%
+  );
+}
+</style>

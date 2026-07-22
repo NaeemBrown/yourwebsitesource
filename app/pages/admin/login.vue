@@ -49,29 +49,35 @@ async function handleSignIn() {
         Sign in with an authorized Google account to manage TheWebsiteForge.
       </p>
 
-      <div
-        v-if="!configured"
-        class="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left text-xs text-amber-200"
-      >
-        Firebase is not configured yet. Add the
-        <code class="text-amber-100">NUXT_PUBLIC_FIREBASE_*</code> values to
-        your <code class="text-amber-100">.env</code> to enable Google sign-in.
-      </div>
+      <!-- ClientOnly: `configured` is set by the client-only Firebase
+           plugin, so SSR always sees false — rendering the branch on the
+           server causes a hydration mismatch. -->
+      <ClientOnly>
+        <div
+          v-if="!configured"
+          class="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left text-xs text-amber-200"
+        >
+          Firebase is not configured yet. Add the
+          <code class="text-amber-100">NUXT_PUBLIC_FIREBASE_*</code> values to
+          your <code class="text-amber-100">.env</code> to enable Google
+          sign-in.
+        </div>
 
-      <button
-        v-else
-        class="btn-gradient mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        :disabled="signingIn"
-        @click="handleSignIn"
-      >
-        <span
-          v-if="signingIn"
-          class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
-        />
-        {{ signingIn ? "Signing in…" : "Continue with Google" }}
-      </button>
+        <button
+          v-else
+          class="btn-gradient mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          :disabled="signingIn"
+          @click="handleSignIn"
+        >
+          <span
+            v-if="signingIn"
+            class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+          />
+          {{ signingIn ? "Signing in…" : "Continue with Google" }}
+        </button>
 
-      <p v-if="error" class="mt-4 text-xs text-rose-400">{{ error }}</p>
+        <p v-if="error" class="mt-4 text-xs text-rose-400">{{ error }}</p>
+      </ClientOnly>
 
       <NuxtLink
         to="/"

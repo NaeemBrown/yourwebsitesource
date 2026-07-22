@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  carePlans,
   databaseTiers,
   domainInfo,
   hostingPlans,
@@ -9,16 +8,14 @@ import {
 
 useSeoMeta({
   title: "Pricing - TheWebsiteForge",
-  description:
-    "Clear pricing for websites, hosting, databases, care plans, and domains.",
+  description: "Clear pricing for websites, hosting, databases, and domains.",
 });
 
 // Per-page social card: the wordmark is already in the template, so the big
 // title is the page topic.
 defineOgImage("Forge", {
   title: "Pricing",
-  description:
-    "Clear pricing for websites, hosting, databases, care plans, and domains.",
+  description: "Clear pricing for websites, hosting, databases, and domains.",
 });
 
 const dollars = (value: number) =>
@@ -356,7 +353,7 @@ const comparison = [
               <p
                 class="font-mono text-[0.58rem] uppercase tracking-[0.28em] text-white/35"
               >
-                Care / 03
+                Changes / 03
               </p>
               <h2
                 class="mt-5 font-display text-[clamp(3.5rem,6vw,6rem)] font-medium leading-[0.88] tracking-[-0.075em]"
@@ -369,36 +366,72 @@ const comparison = [
             </div>
             <div class="grid gap-5 md:grid-cols-2">
               <article
-                v-for="plan in carePlans"
-                :key="plan.id"
                 class="care-card rounded-[1.5rem] border border-white/10 bg-white/[0.025] p-7"
               >
-                <div class="flex items-start justify-between gap-5">
-                  <div>
-                    <h3 class="font-display text-2xl font-medium">
-                      {{ plan.name }}
-                    </h3>
-                    <p class="mt-2 text-sm text-white/40">{{ plan.tagline }}</p>
-                  </div>
-                  <p class="text-right">
-                    <strong
-                      class="block font-display text-3xl tracking-[-0.06em]"
-                      >{{ dollars(plan.price) }}</strong
-                    >
-                    <span class="text-xs text-white/30">monthly</span>
-                  </p>
-                </div>
+                <h3 class="font-display text-2xl font-medium">
+                  Changes after launch
+                </h3>
+                <p class="mt-2 text-sm text-white/40">
+                  Small text and image tweaks are included with hosting.
+                </p>
                 <ul
                   class="mt-7 border-t border-white/10 pt-6 text-sm text-white/50"
                 >
-                  <li
-                    v-for="feature in plan.features"
-                    :key="feature"
-                    class="mt-3 flex gap-3 first:mt-0"
-                  >
-                    <span class="text-brand-300">+</span>{{ feature }}
+                  <li class="flex gap-3">
+                    <span class="text-brand-300">+</span>Submit a change request
+                    from your account
+                  </li>
+                  <li class="mt-3 flex gap-3">
+                    <span class="text-brand-300">+</span>We scope it and send a
+                    fixed quote
+                  </li>
+                  <li class="mt-3 flex gap-3">
+                    <span class="text-brand-300">+</span>Approve it and the work
+                    is paid from your prepaid wallet
+                  </li>
+                  <li class="mt-3 flex gap-3">
+                    <span class="text-brand-300">+</span>No surprises, no
+                    retainers
                   </li>
                 </ul>
+                <NuxtLink
+                  to="/account"
+                  class="mt-7 inline-flex text-sm font-medium text-brand-300 hover:underline"
+                >
+                  Open your account &rarr;
+                </NuxtLink>
+              </article>
+              <article
+                class="care-card rounded-[1.5rem] border border-white/10 bg-white/[0.025] p-7"
+              >
+                <h3 class="font-display text-2xl font-medium">
+                  Already have a website?
+                </h3>
+                <p class="mt-2 text-sm text-white/40">
+                  We also host and look after sites we didn't build.
+                </p>
+                <ul
+                  class="mt-7 border-t border-white/10 pt-6 text-sm text-white/50"
+                >
+                  <li class="flex gap-3">
+                    <span class="text-brand-300">+</span>Tell us where it's
+                    hosted and what it runs on
+                  </li>
+                  <li class="mt-3 flex gap-3">
+                    <span class="text-brand-300">+</span>We confirm the right
+                    hosting plan and migrate it
+                  </li>
+                  <li class="mt-3 flex gap-3">
+                    <span class="text-brand-300">+</span>Fast, backed up, and
+                    online from day one
+                  </li>
+                </ul>
+                <NuxtLink
+                  to="/contact"
+                  class="mt-7 inline-flex text-sm font-medium text-brand-300 hover:underline"
+                >
+                  Tell us about your site &rarr;
+                </NuxtLink>
               </article>
             </div>
           </div>

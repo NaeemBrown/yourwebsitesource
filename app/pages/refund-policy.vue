@@ -32,9 +32,9 @@ const sections = [
     ],
   },
   {
-    heading: "3. Recurring hosting and care plans",
+    heading: "3. Recurring hosting and services",
     body: [
-      "Hosting and care plans are billed in advance for each billing period. You can cancel at any time to stop future renewals.",
+      "Hosting and other recurring services are billed in advance for each billing period. You can cancel at any time to stop future renewals.",
       "Cancellation takes effect at the end of the current paid period; the current period is generally not refunded, and you keep access until it ends. We do not provide pro-rata refunds for partial periods unless required by law or stated otherwise in writing.",
       "If you prepaid annually, we may, at our discretion, refund unused full months after the current month, less any discount you received for prepaying.",
     ],

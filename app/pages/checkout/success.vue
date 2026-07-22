@@ -11,9 +11,13 @@ const reference = computed(() => String(route.query.reference ?? ""));
 // Stable key so the verify result is deduped/cached predictably across SSR and
 // client hydration. Fetches immediately on load (the page is only reached via a
 // Paystack redirect that carries the reference).
+const hasReference = computed(() => reference.value.length > 0);
+
 const { data, pending } = await useFetch("/api/checkout/verify", {
   key: "checkout-verify",
   query: { reference },
+  // Only fetch when we actually have a reference.
+  immediate: hasReference.value,
 });
 
 const paid = computed(() => data.value?.paid === true);
@@ -24,7 +28,20 @@ useSeoMeta({ title: "Payment — TheWebsiteForge", robots: "noindex" });
 <template>
   <div class="px-4 pt-36 pb-24 sm:px-6 lg:px-8">
     <div v-motion="reveal(0)" class="mx-auto max-w-xl text-center">
-      <div v-if="pending" class="glass rounded-2xl p-10">
+      <div v-if="!hasReference" class="glass rounded-2xl p-10">
+        <h1 class="font-display text-3xl font-bold text-white">
+          No payment found
+        </h1>
+        <p class="mt-3 text-slate-400">
+          This page confirms payments after checkout, but no payment reference
+          was provided. If you were charged and ended up here, please
+          <NuxtLink to="/contact" class="text-brand-300 underline"
+            >contact us</NuxtLink
+          >.
+        </p>
+      </div>
+
+      <div v-else-if="pending" class="glass rounded-2xl p-10">
         <p class="text-lg text-slate-300">Confirming your payment…</p>
       </div>
 

@@ -49,7 +49,7 @@ export interface PricingTier {
   planKey?: string;
 }
 
-/** A recurring hosting or care plan (monthly price, USD). */
+/** A recurring hosting plan (monthly price, USD). */
 export interface RecurringPlan {
   id: string;
   name: string;
@@ -465,35 +465,6 @@ export const databaseTiers: AddOnTier[] = [
   },
 ];
 
-export const carePlans: RecurringPlan[] = [
-  {
-    id: "care-basic",
-    name: "Basic Care",
-    tagline: "Keep your site current, secure, and online.",
-    price: 20,
-    features: [
-      "Monthly dependency & security updates",
-      "Uptime & broken-link checks",
-      "Monthly backup verification",
-      "Email support",
-    ],
-  },
-  {
-    id: "care-plus",
-    name: "Plus Care",
-    tagline: "A hands-on partner for an evolving website.",
-    price: 60,
-    highlighted: true,
-    features: [
-      "Everything in Basic Care",
-      "Priority support response",
-      "Content updates each month",
-      "Performance & SEO health check",
-      "Quarterly improvement call",
-    ],
-  },
-];
-
 export const domainInfo = {
   tagline: "Domains at cost plus a small handling fee — no markup games.",
   points: [
@@ -507,7 +478,7 @@ export const domainInfo = {
 export const testimonials: Testimonial[] = [
   {
     quote:
-      "Lumina shipped our SaaS marketing site in under two weeks and trial signups more than tripled. The motion work is unreal.",
+      "TheWebsiteForge shipped our SaaS marketing site in under two weeks and trial signups more than tripled. The motion work is unreal.",
     author: "Dana Reyes",
     role: "Head of Growth",
     company: "Nimbus",
@@ -547,7 +518,7 @@ export const testimonials: Testimonial[] = [
   },
   {
     quote:
-      "Our customs portal used to generate a flood of tickets. Lumina cut them by a third and ops finally went quiet.",
+      "Our customs portal used to generate a flood of tickets. TheWebsiteForge cut them by a third and ops finally went quiet.",
     author: "Jonas Weber",
     role: "Head of Operations",
     company: "Northwind",
@@ -609,7 +580,7 @@ export const faqs: Faq[] = [
   },
   {
     q: "What's your typical turnaround?",
-    a: "A Launch one-pager goes live in about 7 days. Studio multi-page sites take 2–4 weeks. Scale projects are scoped per sprint.",
+    a: "A Starter site goes live in about 3–5 days. Professional and Business builds take 1–4 weeks. Enterprise projects are scoped per milestone.",
   },
   {
     q: "What tech stack do you use?",
@@ -621,7 +592,11 @@ export const faqs: Faq[] = [
   },
   {
     q: "Can you maintain the site after launch?",
-    a: "Absolutely. Studio includes 30 days of support, and Scale plans come with an optional ongoing retainer and SLA.",
+    a: "Absolutely. Our hosting includes baseline upkeep — security updates, backups, monitoring, and small content tweaks. Bigger updates go through change requests from your account, quoted up front and paid from your prepaid wallet.",
+  },
+  {
+    q: "I already have a website — can you host it?",
+    a: "Yes. We take over hosting and upkeep for sites we didn't build. Tell us about your site via the contact form and we'll confirm the right hosting plan and handle the migration.",
   },
 ];
 

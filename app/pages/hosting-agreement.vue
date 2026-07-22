@@ -20,7 +20,7 @@ const sections = [
     heading: "1. Scope",
     body: [
       "This Hosting Agreement applies whenever we host a website for you, whether we built it or you brought us an existing project. It works together with our Terms of Service and Refund Policy.",
-      "Your specific hosting plan, price, and any add-ons (such as a database, care plan, or managed domain) are set out in your order confirmation.",
+      "Your specific hosting plan, price, and any add-ons (such as a database or managed domain) are set out in your order confirmation.",
       "For new websites we build and host, the first month of hosting is free unless your quote states otherwise. Wallet deductions begin when that free period ends.",
     ],
   },
@@ -35,7 +35,7 @@ const sections = [
     heading: "3. Included changes vs chargeable work",
     body: [
       "For sites we built and host, your hosting plan includes a small allowance of minor changes, such as editing text, swapping an existing image, or small tweaks, subject to the limit stated in your plan.",
-      "Work beyond that allowance — including new pages, new features, integrations, or layout/redesign changes — is chargeable. We will scope and quote it, get your approval, then carry out and bill the work. A Care plan can increase your included change allowance.",
+      "Work beyond that allowance — including new pages, new features, integrations, or layout/redesign changes — is chargeable. We will scope and quote it, get your approval, then carry out and bill the work. Change requests are quoted individually from your account and paid from your prepaid wallet.",
       "For sites you brought to us, change work is quoted per request, since we may be working within an unfamiliar codebase.",
     ],
   },
@@ -58,7 +58,7 @@ const sections = [
     heading: "6. Availability and support",
     body: [
       "We aim to keep your site online and performant. Unless a specific service level is stated in writing, hosting is provided on a commercially reasonable best-effort basis.",
-      "Support is provided through the channel and within the response targets stated for your plan. Priority support may be included with higher tiers or a Care plan.",
+      "Support is provided through the channel and within the response targets stated for your plan. Priority support may be included with higher tiers.",
     ],
   },
   {

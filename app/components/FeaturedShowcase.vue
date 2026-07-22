@@ -71,15 +71,7 @@ const ribbon = computed(() =>
         >
           <ProjectIdentityVisual :name="item.project.name" :index="item.n" />
           <div
-            class="absolute inset-0 flex flex-col justify-between p-10"
-            style="
-              background: linear-gradient(
-                to top,
-                rgba(14, 13, 12, 0.72),
-                transparent 32%,
-                rgba(14, 13, 12, 0.2)
-              );
-            "
+            class="showcase-overlay-a absolute inset-0 flex flex-col justify-between p-10"
           >
             <div
               class="flex items-center justify-between font-mono text-xs uppercase tracking-[0.3em] text-[#ece9e2]/70"
@@ -145,15 +137,7 @@ const ribbon = computed(() =>
       >
         <ProjectIdentityVisual :name="project.name" :index="i" />
         <div
-          class="absolute inset-0 flex flex-col justify-between p-7"
-          style="
-            background: linear-gradient(
-              to top,
-              rgba(14, 13, 12, 0.72),
-              transparent 38%,
-              rgba(14, 13, 12, 0.2)
-            );
-          "
+          class="showcase-overlay-b absolute inset-0 flex flex-col justify-between p-7"
         >
           <div
             class="flex items-center justify-between font-mono text-[0.65rem] uppercase tracking-[0.3em] text-[#ece9e2]/70"
@@ -187,6 +171,26 @@ const ribbon = computed(() =>
 </template>
 
 <style scoped>
+/* Static gradients live here (not inline style attributes): prettier reflows
+   long inline styles across lines, and the reformatted whitespace triggers
+   SSR hydration style-mismatch warnings. */
+.showcase-overlay-a {
+  background: linear-gradient(
+    to top,
+    rgba(14, 13, 12, 0.72),
+    transparent 32%,
+    rgba(14, 13, 12, 0.2)
+  );
+}
+.showcase-overlay-b {
+  background: linear-gradient(
+    to top,
+    rgba(14, 13, 12, 0.72),
+    transparent 38%,
+    rgba(14, 13, 12, 0.2)
+  );
+}
+
 /* self-running ribbon: render the set twice, translate by one set width */
 .work-ribbon-track {
   animation: work-ribbon 44s linear infinite;
